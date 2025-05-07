@@ -1,0 +1,12 @@
+{
+  "name" : "tinytris",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "e9d0d6fe71ec440a6a7906f92f941a181b937556",
+  "dependencies" : [ {
+    "name" : "sdl3",
+    "version>=" : "3.2.10"
+  }, {
+    "name" : "sdl3-image",
+    "version>=" : "3.2.4"
+  } ]
+}
