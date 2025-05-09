@@ -59,6 +59,8 @@ typedef struct {
 typedef char* rotation_state_t;
 typedef rotation_state_t piece_def_t[4];
 typedef piece_def_t piece_defs_t[9];
+typedef enum {STATE_ARE, STATE_ACTIVE, STATE_LOCKFLASH} game_state_t;
+
 
 piece_defs_t ROTATION_STATES = {
     // VOID and X
@@ -237,6 +239,8 @@ block_t field[10][21] = {0};
 block_type_t history[4] = {0};
 block_type_t next_piece;
 live_block_t current_piece;
+game_state_t game_state = STATE_ARE;
+int game_state_ctr = 120;
 
 void update_inputs() {
     const bool* state = SDL_GetKeyboardState(NULL);
@@ -300,6 +304,40 @@ void seed_rng() {
     xoroshiro_state[3] = splitmix_next();
 }
 
+int piece_collides(live_block_t piece) {
+    if (piece.type == BLOCK_VOID) return -1;
+
+    rotation_state_t rotation = get_rotation_state(piece.type, piece.rotation_state);
+
+    for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++) {
+            if (rotation[4*j + i] != ' ') {
+                if (field[piece.x + i][piece.y + j + 1].type != BLOCK_VOID || piece.y + j + 1 > 20) {
+                    return 4*j+i;
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+
+void write_piece(live_block_t piece) {
+    if (piece.type == BLOCK_VOID) return;
+
+    rotation_state_t rotation = get_rotation_state(piece.type, piece.rotation_state);
+
+    for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++) {
+            if (rotation[4*j + i] != ' ') {
+                field[piece.x + i][piece.y + j + 1].type = piece.type;
+                field[piece.x + i][piece.y + j + 1].lock_param = 1.0f;
+                field[piece.x + i][piece.y + j + 1].lock_status = LOCK_LOCKED;
+            }
+        }
+    }
+}
+
 block_type_t generate_piece() {
     uint8_t piece = xoroshiro_next() % 8;
     while(piece > 6) piece = xoroshiro_next() % 8;
@@ -342,11 +380,10 @@ void generate_next_piece() {
     current_piece.lock_status = LOCK_UNLOCKED;
     current_piece.rotation_state = 0;
 
-    // TODO: Apply 20G if needed.
-
-    // TODO: Apply IRS.
+    // Apply IRS.
     if ((button_a_held > 0 || button_c_held > 0) && button_b_held == 0) current_piece.rotation_state = 1;
     if ((button_a_held == 0 && button_c_held == 0) && button_b_held > 0) current_piece.rotation_state = 3;
+    if (current_piece.rotation_state != 0 && piece_collides(current_piece) != -1) current_piece.rotation_state = 0;
 }
 
 void render_raw_block(int col, int row, block_type_t block, lock_status_t lockStatus, float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow) {
@@ -501,6 +538,25 @@ void render_current_block() {
     }
 }
 
+void render_tls() {
+    if(current_piece.type == BLOCK_VOID) return;
+
+    live_block_t active = current_piece;
+    active.y++;
+    while (piece_collides(active) == -1) active.y++;
+    active.y--;
+    if (active.y == current_piece.y) return;
+
+    rotation_state_t rotation = get_rotation_state(current_piece.type, current_piece.rotation_state);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (rotation[4*j + i] != ' ') {
+                render_raw_block(active.x + i, active.y + j, active.type, LOCK_GHOST, active.lock_param, false, false, false, false);
+            }
+        }
+    }
+}
+
 void render_field() {
     for (int x = 0; x < 10; x++) {
         for (int y = 1; y < 21; y++) {
@@ -549,6 +605,7 @@ void render_game() {
     // Render the game.
     render_field();
     render_next_block();
+    render_tls();
     render_current_block();
 
     SDL_RenderPresent(renderer);
@@ -561,8 +618,40 @@ bool state_machine_tick() {
     // Quit?
     if (button_quit_held != 0) return false;
 
+    if (button_reset_held == 1) {
+        generate_first_piece();
+        memset(field, 0, sizeof field);
+        game_state = STATE_ARE;
+        game_state_ctr = 120;
+        return true;
+    }
+
     // Do all the logic.
-    if (frame_ctr % 30 == 0) generate_next_piece();
+    if (game_state == STATE_ARE) {
+        game_state_ctr--;
+        if (game_state_ctr == 0) {
+            generate_next_piece();
+            game_state = STATE_ACTIVE;
+        }
+    } else if (game_state == STATE_ACTIVE) {
+        if (frame_ctr % 30 == 0) {
+            current_piece.y++;
+            if (piece_collides(current_piece) != -1) {
+                current_piece.y--;
+                current_piece.lock_status = LOCK_FLASH;
+                game_state = STATE_LOCKFLASH;
+                game_state_ctr = 3;
+            }
+        }
+    } else if (game_state == STATE_LOCKFLASH) {
+        game_state_ctr--;
+        if (game_state_ctr == 0) {
+            game_state = STATE_ARE;
+            game_state_ctr = 8;
+            write_piece(current_piece);
+            current_piece.type = BLOCK_VOID;
+        }
+    }
 
     return true;
 }
@@ -583,43 +672,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     // Load the image for a block.
     blockTexture = IMG_LoadTexture(renderer, "block.bmp");
     SDL_SetTextureScaleMode(blockTexture, SDL_SCALEMODE_NEAREST);
-
-    // Test data.
-    field[3][16] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-    field[4][16] = (block_t){.type = BLOCK_L, .lock_status = LOCK_LOCKED};
-    field[5][16] = (block_t){.type = BLOCK_L, .lock_status = LOCK_LOCKED};
-
-    field[1][17] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-    field[2][17] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-    field[3][17] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-    field[4][17] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-    field[5][17] = (block_t){.type = BLOCK_L, .lock_status = LOCK_LOCKED};
-
-    field[0][18] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-    field[1][18] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-    field[2][18] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-    field[3][18] = (block_t){.type = BLOCK_O, .lock_status = LOCK_LOCKED};
-    field[4][18] = (block_t){.type = BLOCK_O, .lock_status = LOCK_LOCKED};
-    field[5][18] = (block_t){.type = BLOCK_L, .lock_status = LOCK_LOCKED};
-
-    field[0][19] = (block_t){.type = BLOCK_L, .lock_status = LOCK_LOCKED};
-    field[1][19] = (block_t){.type = BLOCK_L, .lock_status = LOCK_LOCKED};
-    field[2][19] = (block_t){.type = BLOCK_L, .lock_status = LOCK_LOCKED};
-    field[3][19] = (block_t){.type = BLOCK_O, .lock_status = LOCK_LOCKED};
-    field[4][19] = (block_t){.type = BLOCK_O, .lock_status = LOCK_LOCKED};
-    field[6][19] = (block_t){.type = BLOCK_J, .lock_status = LOCK_LOCKED};
-    field[7][19] = (block_t){.type = BLOCK_J, .lock_status = LOCK_LOCKED};
-    field[8][19] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
-
-    field[0][20] = (block_t){.type = BLOCK_J, .lock_status = LOCK_LOCKED};
-    field[1][20] = (block_t){.type = BLOCK_O, .lock_status = LOCK_LOCKED};
-    field[2][20] = (block_t){.type = BLOCK_O, .lock_status = LOCK_LOCKED};
-    field[3][20] = (block_t){.type = BLOCK_J, .lock_status = LOCK_LOCKED};
-    field[4][20] = (block_t){.type = BLOCK_S, .lock_status = LOCK_LOCKED};
-    field[5][20] = (block_t){.type = BLOCK_S, .lock_status = LOCK_LOCKED};
-    field[6][20] = (block_t){.type = BLOCK_Z, .lock_status = LOCK_LOCKED};
-    field[7][20] = (block_t){.type = BLOCK_Z, .lock_status = LOCK_LOCKED};
-    field[8][20] = (block_t){.type = BLOCK_T, .lock_status = LOCK_LOCKED};
 
     return SDL_APP_CONTINUE;
 }
