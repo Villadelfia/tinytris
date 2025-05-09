@@ -8,17 +8,37 @@
 
 // Offset of the field from the top left of the window.
 const float FIELD_X_OFFSET = 16.0f;
-const float FIELD_Y_OFFSET = 16.0f * 4.0f;
+const float FIELD_Y_OFFSET = 16.0f * 5.0f;
 
 // Render scale.
 const int RENDER_SCALE = 2;
+
+// Buttons.
+const int BUTTON_U = SDL_SCANCODE_W;
+const int BUTTON_L = SDL_SCANCODE_A;
+const int BUTTON_D = SDL_SCANCODE_S;
+const int BUTTON_R = SDL_SCANCODE_D;
+const int BUTTON_A = SDL_SCANCODE_J;
+const int BUTTON_B = SDL_SCANCODE_K;
+const int BUTTON_C = SDL_SCANCODE_L;
+const int BUTTON_RESET = SDL_SCANCODE_R;
+const int BUTTON_QUIT = SDL_SCANCODE_ESCAPE;
+int button_u_held = 0;
+int button_l_held = 0;
+int button_d_held = 0;
+int button_r_held = 0;
+int button_a_held = 0;
+int button_b_held = 0;
+int button_c_held = 0;
+int button_reset_held = 0;
+int button_quit_held = 0;
 
 // Renderer and target.
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Texture *blockTexture = NULL;
-static Uint64 lastTime = 0;
-static Uint64 frameCtr = 0;
+static Uint64 last_time = 0;
+static Uint64 frame_ctr = 0;
 
 // Types for game state.
 typedef enum {BLOCK_VOID, BLOCK_X, BLOCK_I, BLOCK_L, BLOCK_O, BLOCK_Z, BLOCK_T, BLOCK_J, BLOCK_S} block_type_t;
@@ -32,16 +52,213 @@ typedef struct {
     block_type_t type;
     uint8_t rotation_state;
     uint8_t x;
-    uint8_t y;
+    int8_t y;
     lock_status_t lock_status;
     float lock_param;
 } live_block_t;
+typedef char* rotation_state_t;
+typedef rotation_state_t piece_def_t[4];
+typedef piece_def_t piece_defs_t[9];
+
+piece_defs_t ROTATION_STATES = {
+    // VOID and X
+    {"", "", "", ""},
+    {"", "", "", ""},
+
+    // BLOCK_I
+    {
+        "    "
+        "IIII"
+        "    "
+        "    ",
+
+        "  I "
+        "  I "
+        "  I "
+        "  I ",
+
+        "    "
+        "IIII"
+        "    "
+        "    ",
+
+        "  I "
+        "  I "
+        "  I "
+        "  I ",
+    },
+
+    // BLOCK_L
+    {
+        "    "
+        "LLL "
+        "L   "
+        "    ",
+
+        " L  "
+        " L  "
+        " LL "
+        "    ",
+
+        "    "
+        "  L "
+        "LLL "
+        "    ",
+
+        "LL  "
+        " L  "
+        " L  "
+        "    ",
+    },
+
+    // BLOCK_O
+    {
+        "    "
+        " OO "
+        " OO "
+        "    ",
+
+        "    "
+        " OO "
+        " OO "
+        "    ",
+
+        "    "
+        " OO "
+        " OO "
+        "    ",
+
+        "    "
+        " OO "
+        " OO "
+        "    ",
+    },
+
+    // BLOCK_Z
+    {
+        "    "
+        "ZZ  "
+        " ZZ "
+        "    ",
+
+        "  Z "
+        " ZZ "
+        " Z  "
+        "    ",
+
+        "    "
+        "ZZ  "
+        " ZZ "
+        "    ",
+
+        "  Z "
+        " ZZ "
+        " Z  "
+        "    "
+    },
+
+    // BLOCK_T
+    {
+        "    "
+        "TTT "
+        " T  "
+        "    ",
+
+        " T  "
+        " TT "
+        " T  "
+        "    ",
+
+        "    "
+        " T  "
+        "TTT "
+        "    ",
+
+        " T  "
+        "TT  "
+        " T  "
+        "    "
+    },
+
+    // BLOCK_J
+    {
+        "    "
+        "JJJ "
+        "  J "
+        "    ",
+
+        " JJ "
+        " J  "
+        " J  "
+        "    ",
+
+        "    "
+        "J   "
+        "JJJ "
+        "    ",
+
+        " J  "
+        " J  "
+        "JJ  "
+        "    "
+    },
+
+
+    // BLOCK_S
+    {
+        "    "
+        " SS "
+        "SS  "
+        "    ",
+
+        "S   "
+        "SS  "
+        " S  "
+        "    ",
+
+        "    "
+        " SS "
+        "SS  "
+        "    ",
+
+        "S   "
+        "SS  "
+        " S  "
+        "    "
+    }
+};
+
+rotation_state_t get_rotation_state(block_type_t piece, int rotation_state) {
+    return ROTATION_STATES[piece][rotation_state];
+}
 
 // The current field of locked pieces.
 block_t field[10][21] = {0};
 block_type_t history[4] = {0};
 block_type_t next_piece;
 live_block_t current_piece;
+
+void update_inputs() {
+    const bool* state = SDL_GetKeyboardState(NULL);
+    if (state[BUTTON_U]) button_u_held++;
+    else button_u_held = 0;
+    if (state[BUTTON_D]) button_d_held++;
+    else button_d_held = 0;
+    if (state[BUTTON_L]) button_l_held++;
+    else button_l_held = 0;
+    if (state[BUTTON_R]) button_r_held++;
+    else button_r_held = 0;
+    if (state[BUTTON_A]) button_a_held++;
+    else button_a_held = 0;
+    if (state[BUTTON_B]) button_b_held++;
+    else button_b_held = 0;
+    if (state[BUTTON_C]) button_c_held++;
+    else button_c_held = 0;
+    if (state[BUTTON_RESET]) button_reset_held++;
+    else button_reset_held = 0;
+    if (state[BUTTON_QUIT]) button_quit_held++;
+    else button_quit_held = 0;
+}
 
 // SDL hit-test that marks the entire window as draggable.
 SDL_HitTestResult HitTest(SDL_Window *win, const SDL_Point *area, void *data) {
@@ -120,13 +337,16 @@ void generate_next_piece() {
     current_piece.type = next_piece;
     next_piece = result;
     current_piece.x = 3;
-    current_piece.y = 0;
+    current_piece.y = -1;
     current_piece.lock_param = 1.0f;
     current_piece.lock_status = LOCK_UNLOCKED;
     current_piece.rotation_state = 0;
 
     // TODO: Apply 20G if needed.
+
     // TODO: Apply IRS.
+    if ((button_a_held > 0 || button_c_held > 0) && button_b_held == 0) current_piece.rotation_state = 1;
+    if ((button_a_held == 0 && button_c_held == 0) && button_b_held > 0) current_piece.rotation_state = 3;
 }
 
 void render_raw_block(int col, int row, block_type_t block, lock_status_t lockStatus, float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow) {
@@ -174,7 +394,7 @@ void render_raw_block(int col, int row, block_type_t block, lock_status_t lockSt
     float moda = 1.0f;
     switch(lockStatus) {
         case LOCK_LOCKED:
-            mod = 0.8f;
+            mod = 0.6f;
             break;
         case LOCK_FLASH:
             Uint8 r, g, b, a;
@@ -222,46 +442,46 @@ void render_field_block(int x, int y) {
 void render_next_block() {
     switch(next_piece) {
         case BLOCK_I:
-            render_raw_block(3, -3, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(6, -3, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(6, -4, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             break;
         case BLOCK_L:
+            render_raw_block(3, -4, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             render_raw_block(3, -3, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(3, -2, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             break;
         case BLOCK_O:
+            render_raw_block(4, -4, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             render_raw_block(4, -3, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             render_raw_block(5, -3, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -2, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -2, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             break;
         case BLOCK_Z:
-            render_raw_block(3, -3, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             render_raw_block(4, -3, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -2, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -2, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(5, -3, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             break;
         case BLOCK_T:
-            render_raw_block(3, -3, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             render_raw_block(4, -3, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -2, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             break;
         case BLOCK_J:
-            render_raw_block(3, -3, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             render_raw_block(5, -3, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -2, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             break;
         case BLOCK_S:
+            render_raw_block(4, -4, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -3, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             render_raw_block(4, -3, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(3, -2, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -2, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
             break;
         default:
             return;
@@ -270,7 +490,15 @@ void render_next_block() {
 
 void render_current_block() {
     if(current_piece.type == BLOCK_VOID) return;
-    // TODO.
+
+    rotation_state_t rotation = get_rotation_state(current_piece.type, current_piece.rotation_state);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (rotation[4*j + i] != ' ') {
+                render_raw_block(current_piece.x + i, current_piece.y + j, current_piece.type, current_piece.lock_status, current_piece.lock_param, false, false, false, false);
+            }
+        }
+    }
 }
 
 void render_field() {
@@ -279,6 +507,64 @@ void render_field() {
             render_field_block(x, y);
         }
     }
+}
+
+void render_game() {
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0);
+    SDL_RenderClear(renderer);
+
+    // Background.
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.3f);
+    SDL_FRect dst = {.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET, .w = 16.0f * 10.0f, .h = 16.0f * 20.0f};
+    SDL_RenderFillRect(renderer, &dst);
+
+    // Field border.
+    SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.4f);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
+    SDL_RenderFillRect(renderer, &dst);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (10.0f * 16.0f), .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
+    SDL_RenderFillRect(renderer, &dst);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET - 8, .w = 16.0f * 10.0f, .h = 8.0f};
+    SDL_RenderFillRect(renderer, &dst);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET + (20.0f * 16.0f), .w = 16.0f * 10.0f, .h = 8.0f};
+    SDL_RenderFillRect(renderer, &dst);
+
+    // Background for next.
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 8, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 16, .h = 2.0f * 16.0f + 8};
+    SDL_RenderFillRect(renderer, &dst);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.2f);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 6, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 12, .h = 2.0f * 16.0f + 8};
+    SDL_RenderFillRect(renderer, &dst);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.3f);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 4, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 8, .h = 2.0f * 16.0f + 8};
+    SDL_RenderFillRect(renderer, &dst);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.4f);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 2, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 4, .h = 2.0f * 16.0f + 8};
+    SDL_RenderFillRect(renderer, &dst);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.5f);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f), .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f, .h = 2.0f * 16.0f + 8};
+    SDL_RenderFillRect(renderer, &dst);
+
+    // Render the game.
+    render_field();
+    render_next_block();
+    render_current_block();
+
+    SDL_RenderPresent(renderer);
+}
+
+bool state_machine_tick() {
+    // Get input.
+    update_inputs();
+
+    // Quit?
+    if (button_quit_held != 0) return false;
+
+    // Do all the logic.
+    if (frame_ctr % 30 == 0) generate_next_piece();
+
+    return true;
 }
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
@@ -339,69 +625,21 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 }
 
 SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
-    switch(event->type) {
-        case SDL_EVENT_QUIT:
-            return SDL_APP_SUCCESS;
-        default:
-            break;
-    }
+    if (event->type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;
     return SDL_APP_CONTINUE;
 }
 
 SDL_AppResult SDL_AppIterate(void *appstate) {
-    Uint64 now = SDL_GetTicksNS();
-    if(now >= lastTime + (SDL_NS_PER_SECOND / 60LL) && SDL_GetKeyboardFocus() == window) {
-        lastTime = now;
-        frameCtr++;
-
-        // Do all the logic.
-        if (frameCtr % 30 == 0) generate_next_piece();
+    // Handle 1/frame update.
+    const Uint64 now = SDL_GetTicksNS();
+    if(now >= last_time + (SDL_NS_PER_SECOND / 60LL) && SDL_GetKeyboardFocus() == window) {
+        last_time = now;
+        frame_ctr++;
+        if (!state_machine_tick()) return SDL_APP_SUCCESS;
     }
 
     // Render the game.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0);
-
-    SDL_RenderClear(renderer);
-
-    // Background.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.3f);
-    SDL_FRect dst = {.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET, .w = 16.0f * 10.0f, .h = 16.0f * 20.0f};
-    SDL_RenderFillRect(renderer, &dst);
-
-    // Field border.
-    SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.4f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
-    SDL_RenderFillRect(renderer, &dst);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (10.0f * 16.0f), .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
-    SDL_RenderFillRect(renderer, &dst);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET - 8, .w = 16.0f * 10.0f, .h = 8.0f};
-    SDL_RenderFillRect(renderer, &dst);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET + (20.0f * 16.0f), .w = 16.0f * 10.0f, .h = 8.0f};
-    SDL_RenderFillRect(renderer, &dst);
-
-    // Background for next.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 8, .y = FIELD_Y_OFFSET - (3.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 16, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.2f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 6, .y = FIELD_Y_OFFSET - (3.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 12, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.3f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 4, .y = FIELD_Y_OFFSET - (3.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 8, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.4f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 2, .y = FIELD_Y_OFFSET - (3.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 4, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.5f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f), .y = FIELD_Y_OFFSET - (3.0f * 16.0f) - 4, .w = 6.0f * 16.0f, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-
-    // Render the game.
-    render_field();
-    render_next_block();
-    render_current_block();
-
-    SDL_RenderPresent(renderer);
+    render_game();
 
     return SDL_APP_CONTINUE;
 }
