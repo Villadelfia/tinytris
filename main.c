@@ -5,6 +5,7 @@
 #include <SDL3/SDL_timer.h>
 #include <stdint.h>
 #include <time.h>
+#include "block.h"
 
 // Offset of the field from the top left of the window.
 const float FIELD_X_OFFSET = 16.0f;
@@ -50,16 +51,17 @@ typedef struct {
 } block_t;
 typedef struct {
     block_type_t type;
-    uint8_t rotation_state;
-    uint8_t x;
+    int8_t rotation_state;
+    int8_t x;
     int8_t y;
     lock_status_t lock_status;
     float lock_param;
+    int8_t lock_delay;
 } live_block_t;
 typedef char* rotation_state_t;
 typedef rotation_state_t piece_def_t[4];
 typedef piece_def_t piece_defs_t[9];
-typedef enum {STATE_ARE, STATE_ACTIVE, STATE_LOCKFLASH} game_state_t;
+typedef enum {STATE_ARE, STATE_ACTIVE, STATE_LOCKFLASH, STATE_CLEAR, STATE_GAMEOVER} game_state_t;
 typedef struct {
     int level;
     int g;
@@ -292,7 +294,12 @@ block_type_t history[4] = {0};
 block_type_t next_piece;
 live_block_t current_piece;
 game_state_t game_state = STATE_ARE;
-int game_state_ctr = 120;
+int game_state_ctr = 60;
+int level = 0;
+timing_t *current_timing;
+int accumulated_g = 0;
+int lines_cleared = 0;
+int clears[4] = {-1, -1, -1, -1};
 
 void update_inputs() {
     const bool* state = SDL_GetKeyboardState(NULL);
@@ -356,7 +363,19 @@ void seed_rng() {
     xoroshiro_state[3] = splitmix_next();
 }
 
-int piece_collides(live_block_t piece) {
+void increment_level(const int lines) {
+    if (lines == 0) {
+        if (level % 100 == 99) return;
+        level++;
+    } else {
+        level += lines;
+    }
+    if ((current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
+        current_timing = current_timing+1;
+    }
+}
+
+int piece_collides(const live_block_t piece) {
     if (piece.type == BLOCK_VOID) return -1;
 
     rotation_state_t rotation = get_rotation_state(piece.type, piece.rotation_state);
@@ -364,7 +383,7 @@ int piece_collides(live_block_t piece) {
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
             if (rotation[4*j + i] != ' ') {
-                if (field[piece.x + i][piece.y + j + 1].type != BLOCK_VOID || piece.y + j + 1 > 20) {
+                if (piece.y + j + 1 > 20 || piece.x + i < 0 || piece.x + i > 9 || field[piece.x + i][piece.y + j + 1].type != BLOCK_VOID) {
                     return 4*j+i;
                 }
             }
@@ -374,19 +393,148 @@ int piece_collides(live_block_t piece) {
     return -1;
 }
 
-void write_piece(live_block_t piece) {
+void write_piece(const live_block_t piece) {
     if (piece.type == BLOCK_VOID) return;
 
     rotation_state_t rotation = get_rotation_state(piece.type, piece.rotation_state);
 
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
-            if (rotation[4*j + i] != ' ') {
+            if (rotation[4*j + i] != ' ' && piece.x + i >= 0 && piece.x + i < 10 && piece.y + j + 1 >= 0 && piece.y + j + 1 < 21) {
                 field[piece.x + i][piece.y + j + 1].type = piece.type;
                 field[piece.x + i][piece.y + j + 1].lock_param = 1.0f;
                 field[piece.x + i][piece.y + j + 1].lock_status = LOCK_LOCKED;
             }
         }
+    }
+}
+
+void try_move(int direction) {
+    if (current_piece.type == BLOCK_VOID) return;
+
+    live_block_t active = current_piece;
+    active.x += direction;
+    if (piece_collides(active) == -1) current_piece.x += direction;
+}
+
+void try_descend() {
+    if (current_piece.type == BLOCK_VOID) return;
+
+    live_block_t active = current_piece;
+    active.y++;
+    if (piece_collides(active) == -1) current_piece.y++;
+}
+
+bool piece_grounded() {
+    if (current_piece.type == BLOCK_VOID) return false;
+
+    live_block_t active = current_piece;
+    active.y++;
+    return piece_collides(active) != -1;
+}
+
+void try_rotate(int direction) {
+    if (current_piece.type == BLOCK_VOID) return;
+
+    live_block_t active = current_piece;
+    active.rotation_state += direction;
+    if (active.rotation_state < 0) active.rotation_state = 3;
+    if (active.rotation_state > 3) active.rotation_state = 0;
+
+    int collision = piece_collides(active);
+    if (collision == -1) {
+        current_piece.rotation_state = active.rotation_state;
+        return;
+    }
+
+    if (active.type == BLOCK_I || active.type == BLOCK_O) return;
+
+    if (active.type == BLOCK_J || active.type == BLOCK_L || active.type == BLOCK_T) {
+        if (collision == 1 || collision == 5 || collision == 9) return;
+    }
+
+    active.x += 1;
+    if (piece_collides(active) == -1) {
+        current_piece.rotation_state = active.rotation_state;
+        current_piece.x += 1;
+        return;
+    }
+
+    active.x -= 2;
+    if (piece_collides(active) == -1) {
+        current_piece.rotation_state = active.rotation_state;
+        current_piece.x -= 1;
+    }
+}
+
+void check_clears() {
+    clears[0] = -1;
+    clears[1] = -1;
+    clears[2] = -1;
+    clears[3] = -1;
+
+    int ct = 0;
+
+    for (int i = 0; i < 21; i++) {
+        if (
+            field[0][i].type != BLOCK_VOID &&
+            field[1][i].type != BLOCK_VOID &&
+            field[2][i].type != BLOCK_VOID &&
+            field[3][i].type != BLOCK_VOID &&
+            field[4][i].type != BLOCK_VOID &&
+            field[5][i].type != BLOCK_VOID &&
+            field[6][i].type != BLOCK_VOID &&
+            field[7][i].type != BLOCK_VOID &&
+            field[8][i].type != BLOCK_VOID &&
+            field[9][i].type != BLOCK_VOID) {
+            clears[ct++] = i;
+        }
+    }
+
+    lines_cleared = ct;
+}
+
+void wipe_cleared() {
+    for (int i = 0; i < 4; ++i) {
+        if (clears[i] == -1) break;
+        field[0][clears[i]].type = BLOCK_VOID;
+        field[1][clears[i]].type = BLOCK_VOID;
+        field[2][clears[i]].type = BLOCK_VOID;
+        field[3][clears[i]].type = BLOCK_VOID;
+        field[4][clears[i]].type = BLOCK_VOID;
+        field[5][clears[i]].type = BLOCK_VOID;
+        field[6][clears[i]].type = BLOCK_VOID;
+        field[7][clears[i]].type = BLOCK_VOID;
+        field[8][clears[i]].type = BLOCK_VOID;
+        field[9][clears[i]].type = BLOCK_VOID;
+    }
+}
+
+void collapse_clears() {
+    for (int i = 0; i < 4; ++i) {
+        if (clears[i] == -1) break;
+        for (int j = clears[i]; j > 0; j--) {
+            field[0][j] = field[0][j-1];
+            field[1][j] = field[1][j-1];
+            field[2][j] = field[2][j-1];
+            field[3][j] = field[3][j-1];
+            field[4][j] = field[4][j-1];
+            field[5][j] = field[5][j-1];
+            field[6][j] = field[6][j-1];
+            field[7][j] = field[7][j-1];
+            field[8][j] = field[8][j-1];
+            field[9][j] = field[9][j-1];
+        }
+        field[0][0].type = BLOCK_VOID;
+        field[1][0].type = BLOCK_VOID;
+        field[2][0].type = BLOCK_VOID;
+        field[3][0].type = BLOCK_VOID;
+        field[4][0].type = BLOCK_VOID;
+        field[5][0].type = BLOCK_VOID;
+        field[6][0].type = BLOCK_VOID;
+        field[7][0].type = BLOCK_VOID;
+        field[8][0].type = BLOCK_VOID;
+        field[9][0].type = BLOCK_VOID;
     }
 }
 
@@ -431,11 +579,22 @@ void generate_next_piece() {
     current_piece.lock_param = 1.0f;
     current_piece.lock_status = LOCK_UNLOCKED;
     current_piece.rotation_state = 0;
+    current_piece.lock_delay = current_timing->lock;
 
     // Apply IRS.
     if ((button_a_held > 0 || button_c_held > 0) && button_b_held == 0) current_piece.rotation_state = 1;
     if ((button_a_held == 0 && button_c_held == 0) && button_b_held > 0) current_piece.rotation_state = 3;
     if (current_piece.rotation_state != 0 && piece_collides(current_piece) != -1) current_piece.rotation_state = 0;
+
+    if (current_timing->g == 5120) {
+        for (int i = 0; i < 20; i++) try_descend();
+    }
+}
+
+void gray_line(int row) {
+    for (int i = 0; i < 9; i++) {
+        if (field[i][row].type != BLOCK_VOID) field[i][row].type = BLOCK_X;
+    }
 }
 
 void render_raw_block(int col, int row, block_type_t block, lock_status_t lockStatus, float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow) {
@@ -627,7 +786,8 @@ void render_game() {
     SDL_RenderFillRect(renderer, &dst);
 
     // Field border.
-    SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.4f);
+    if (SDL_GetKeyboardFocus() == window) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.4f);
+    else SDL_SetRenderDrawColorFloat(renderer, 0.4f, 0.4f, 0.4f, 0.4f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
     SDL_RenderFillRect(renderer, &dst);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (10.0f * 16.0f), .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
@@ -670,11 +830,16 @@ bool state_machine_tick() {
     // Quit?
     if (button_quit_held != 0) return false;
 
+    // Reset?
     if (button_reset_held == 1) {
         generate_first_piece();
         memset(field, 0, sizeof field);
         game_state = STATE_ARE;
-        game_state_ctr = 120;
+        game_state_ctr = 60;
+        current_timing = &game_timing[0];
+        accumulated_g = 0;
+        level = 0;
+        lines_cleared = 0;
         return true;
     }
 
@@ -682,17 +847,48 @@ bool state_machine_tick() {
     if (game_state == STATE_ARE) {
         game_state_ctr--;
         if (game_state_ctr == 0) {
+            increment_level(lines_cleared);
             generate_next_piece();
-            game_state = STATE_ACTIVE;
+            if (piece_collides(current_piece) != -1) {
+                write_piece(current_piece);
+                current_piece.type = BLOCK_VOID;
+                game_state = STATE_GAMEOVER;
+                game_state_ctr = 10 * 21 + 1;
+            } else {
+                game_state = STATE_ACTIVE;
+            }
         }
     } else if (game_state == STATE_ACTIVE) {
         // Rotate.
+        if ((button_a_held == 1 || button_c_held == 1) && button_b_held != 1) try_rotate(1);
+        else if ((button_a_held != 1 && button_c_held != 1) && button_b_held == 1) try_rotate(-1);
+
         // Move.
+        if (button_l_held == 1 || button_l_held > current_timing->das) try_move(-1);
+        else if (button_r_held == 1 || button_r_held > current_timing->das) try_move(1);
+
         // Gravity.
-        if (frame_ctr % 30 == 0) {
-            current_piece.y++;
-            if (piece_collides(current_piece) != -1) {
-                current_piece.y--;
+        accumulated_g += current_timing->g;
+        if (accumulated_g < 256 && button_d_held > 0) accumulated_g += 256;
+        if (button_u_held == 1) accumulated_g += 20*256;
+        if (accumulated_g >= 256) {
+            int8_t start_y = current_piece.y;
+            while (accumulated_g >= 256) {
+                try_descend();
+                accumulated_g -= 256;
+            }
+            if (start_y != current_piece.y) {
+                current_piece.lock_param = 1.0f;
+                current_piece.lock_delay = current_timing->lock;
+            }
+        }
+
+        // Lock?
+        if (piece_grounded()) {
+            current_piece.lock_delay--;
+            if (button_d_held > 0) current_piece.lock_delay = 0;
+            current_piece.lock_param = (float)current_piece.lock_delay / (float)current_timing->lock;
+            if (current_piece.lock_delay == 0) {
                 current_piece.lock_status = LOCK_FLASH;
                 game_state = STATE_LOCKFLASH;
                 game_state_ctr = 3;
@@ -700,12 +896,28 @@ bool state_machine_tick() {
         }
     } else if (game_state == STATE_LOCKFLASH) {
         game_state_ctr--;
-        if (game_state_ctr == 0) {
+        if (game_state_ctr != 0) return true;
+        write_piece(current_piece);
+        current_piece.type = BLOCK_VOID;
+        check_clears();
+        if (lines_cleared != 0) {
+            wipe_cleared();
+            game_state_ctr = current_timing->clear;
+            game_state = STATE_CLEAR;
+        } else {
             game_state = STATE_ARE;
-            game_state_ctr = 8;
-            write_piece(current_piece);
-            current_piece.type = BLOCK_VOID;
+            game_state_ctr = current_timing->are - 3;
         }
+    } else if (game_state == STATE_CLEAR) {
+        game_state_ctr--;
+        if (game_state_ctr != 0) return true;
+        collapse_clears();
+        game_state = STATE_ARE;
+        game_state_ctr = current_timing->line_are - 3;
+    } else if (game_state == STATE_GAMEOVER) {
+        game_state_ctr--;
+        if (game_state_ctr == -1) return true;
+        gray_line(game_state_ctr / 10);
     }
 
     return true;
@@ -714,6 +926,7 @@ bool state_machine_tick() {
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     seed_rng();
     generate_first_piece();
+    current_timing = &game_timing[0];
 
     // Create the window.
     SDL_SetAppMetadata("Tinytris", "1.0", "org.villadelfia.tinytris");
@@ -725,7 +938,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetWindowHitTest(window, HitTest, NULL);
 
     // Load the image for a block.
-    blockTexture = IMG_LoadTexture(renderer, "block.bmp");
+    SDL_IOStream *t = SDL_IOFromMem(block, sizeof block);
+    blockTexture = IMG_LoadTexture_IO(renderer, t, true);
     SDL_SetTextureScaleMode(blockTexture, SDL_SCALEMODE_NEAREST);
 
     return SDL_APP_CONTINUE;
