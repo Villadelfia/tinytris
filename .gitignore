@@ -2,5 +2,6 @@
 /.idea
 /out
 /.vs
+/CMakeSettings.json
 bin2c.exe
 *.wav
