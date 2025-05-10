@@ -12,7 +12,7 @@ const float FIELD_X_OFFSET = 16.0f;
 const float FIELD_Y_OFFSET = 16.0f * 5.0f;
 
 // Render scale.
-const int RENDER_SCALE = 2;
+int render_scale = 2;
 
 // Buttons.
 const int BUTTON_U = SDL_SCANCODE_W;
@@ -24,6 +24,8 @@ const int BUTTON_B = SDL_SCANCODE_K;
 const int BUTTON_C = SDL_SCANCODE_L;
 const int BUTTON_RESET = SDL_SCANCODE_R;
 const int BUTTON_QUIT = SDL_SCANCODE_ESCAPE;
+const int BUTTON_SCALE_UP = SDL_SCANCODE_EQUALS;
+const int BUTTON_SCALE_DOWN = SDL_SCANCODE_MINUS;
 int button_u_held = 0;
 int button_l_held = 0;
 int button_d_held = 0;
@@ -33,6 +35,8 @@ int button_b_held = 0;
 int button_c_held = 0;
 int button_reset_held = 0;
 int button_quit_held = 0;
+int button_scale_up_held = 0;
+int button_scale_down_held = 0;
 
 // Renderer and target.
 static SDL_Window *window = NULL;
@@ -309,6 +313,11 @@ int accumulated_g = 0;
 int lines_cleared = 0;
 int clears[4] = {-1, -1, -1, -1};
 
+void apply_scale() {
+    SDL_SetWindowSize(window, 12*16*render_scale, 26*16*render_scale);
+    SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
+}
+
 void update_inputs() {
     const bool* state = SDL_GetKeyboardState(NULL);
     if (state[BUTTON_U]) button_u_held++;
@@ -329,6 +338,10 @@ void update_inputs() {
     else button_reset_held = 0;
     if (state[BUTTON_QUIT]) button_quit_held++;
     else button_quit_held = 0;
+    if (state[BUTTON_SCALE_DOWN]) button_scale_down_held++;
+    else button_scale_down_held = 0;
+    if (state[BUTTON_SCALE_UP]) button_scale_up_held++;
+    else button_scale_up_held = 0;
 }
 
 // SDL hit-test that marks the entire window as draggable.
@@ -829,10 +842,10 @@ void render_game() {
     render_current_block();
 
     // A bit of info.
-    SDL_SetRenderScale(renderer, RENDER_SCALE/2.0f, RENDER_SCALE/2.0f);
+    SDL_SetRenderScale(renderer, render_scale/2.0f, render_scale/2.0f);
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 1.0f);
     SDL_RenderDebugTextFormat(renderer, 30.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 3) * 2 , "[LVL:%04d] [GRV:%06.3f] [DAS:%02d] [LCK:%02d]", level, current_timing->g/256.0f, current_timing->das, current_timing->lock);
-    SDL_SetRenderScale(renderer, RENDER_SCALE, RENDER_SCALE);
+    SDL_SetRenderScale(renderer, render_scale, render_scale);
 
     SDL_RenderPresent(renderer);
 }
@@ -862,6 +875,15 @@ bool state_machine_tick() {
         border_g = 0.1f;
         border_b = 0.9f;
         return true;
+    }
+
+    // Rescale?
+    if (button_scale_down_held == 1 && render_scale != 1) {
+        render_scale--;
+        apply_scale();
+    } else if (button_scale_up_held == 1) {
+        render_scale++;
+        apply_scale();
     }
 
     // Do all the logic.
@@ -985,8 +1007,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     // Create the window.
     SDL_SetAppMetadata("Tinytris", "1.0", "org.villadelfia.tinytris");
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_CreateWindowAndRenderer("Tinytris", 12*16*RENDER_SCALE, 26*16*RENDER_SCALE, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
-    SDL_SetRenderScale(renderer, 1.0f * (float)RENDER_SCALE, 1.0f * (float)RENDER_SCALE);
+    SDL_CreateWindowAndRenderer("Tinytris", 12*16*render_scale, 26*16*render_scale, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
+    SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
 
     // Make the window entirely draggable.
     SDL_SetWindowHitTest(window, HitTest, NULL);

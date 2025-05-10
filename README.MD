@@ -6,13 +6,15 @@ A minimal implementation of a TGM2-like tetris game. Intended to be played while
 
 Controls are hardcoded, but easy enough to adjust in the source file.
 
-- A/D: Left/right
-- W: Sonic drop
-- S: Soft drop
-- J/L: Rotate CCW
-- K: Rotate CW
-- R: Restart game
-- ESC: Quit game
+- `A/D`: Left/right
+- `W`: Sonic drop
+- `S`: Soft drop
+- `J/L`: Rotate CCW
+- `K`: Rotate CW
+- `R`: Restart game
+- `ESC`: Quit game
+- `-`: Scale down
+- `=`: Scale up
 
 ## Features
 
