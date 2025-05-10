@@ -1,6 +1,6 @@
 # Tinytris
 
-A minimal implementation of a TGM2-like tetris game. Intended to be played while doing other things.
+A minimal implementation of a TGM2-like tetris game, with some modern amenities. Intended to be played while doing other things.
 
 ## Controls
 
@@ -9,6 +9,7 @@ Controls are hardcoded, but easy enough to adjust in the source file.
 - `A/D`: Left/right
 - `W`: Sonic drop
 - `S`: Soft drop
+- `N`: Hard drop
 - `J/L`: Rotate CCW
 - `K`: Rotate CW
 - `R`: Restart game

@@ -66,6 +66,7 @@ int32_t button_scale_up_held = 0;
 int32_t button_scale_down_held = 0;
 int32_t button_mute_held = 0;
 int32_t button_mystery_held = 0;
+int32_t button_hard_drop_held = 0;
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -105,6 +106,7 @@ void update_input_states() {
     update_input_state(state, BUTTON_SCALE_UP, &button_scale_up_held);
     update_input_state(state, BUTTON_MUTE, &button_mute_held);
     update_input_state(state, BUTTON_MYSTERY, &button_mystery_held);
+    update_input_state(state, BUTTON_HARD_DROP, &button_hard_drop_held);
 }
 
 void play_sound(const sound_t *sound) {
@@ -348,7 +350,7 @@ void generate_next_piece() {
 
     if (current_timing->g == 5120) {
         for (int i = 0; i < 20; i++) try_descend();
-        if (IS_RELEASED(button_d_held)) play_sound(&pieceland_sound);
+        play_sound(&pieceland_sound);
     }
 }
 
@@ -692,7 +694,7 @@ bool state_machine_tick() {
         // Soft drop.
         if (current_timing->g < 256 && IS_HELD(button_d_held)) accumulated_g = 256;
         // Sonic drop.
-        if (IS_JUST_HELD(button_u_held) || (IS_HELD(button_u_held) > 0 && game_state_ctr > 0)) accumulated_g += 20*256;
+        if (IS_JUST_HELD(button_u_held) || IS_JUST_HELD(button_hard_drop_held) || ((IS_HELD(button_u_held) || IS_HELD(button_hard_drop_held)) && game_state_ctr > 0)) accumulated_g += 20*256;
 
         const int start_y = current_piece.y;
         if (accumulated_g >= 256) {
@@ -711,7 +713,7 @@ bool state_machine_tick() {
             if (!was_grounded || start_y != current_piece.y) play_sound(&pieceland_sound);
             current_piece.lock_delay--;
             // Soft lock.
-            if (IS_HELD(button_d_held)) current_piece.lock_delay = 0;
+            if (IS_HELD(button_d_held) || IS_HELD(button_hard_drop_held)) current_piece.lock_delay = 0;
             current_piece.lock_param = (float)current_piece.lock_delay / (float)current_timing->lock;
             if (current_piece.lock_delay == 0) {
                 play_sound(&piecelock_sound);
