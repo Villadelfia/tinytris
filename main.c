@@ -828,6 +828,12 @@ void render_game() {
     render_tls();
     render_current_block();
 
+    // A bit of info.
+    SDL_SetRenderScale(renderer, RENDER_SCALE/2.0f, RENDER_SCALE/2.0f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 1.0f);
+    SDL_RenderDebugTextFormat(renderer, 30.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 3) * 2 , "[LVL:%04d] [GRV:%06.3f] [DAS:%02d] [LCK:%02d]", level, current_timing->g/256.0f, current_timing->das, current_timing->lock);
+    SDL_SetRenderScale(renderer, RENDER_SCALE, RENDER_SCALE);
+
     SDL_RenderPresent(renderer);
 }
 
@@ -888,15 +894,23 @@ bool state_machine_tick() {
     } else if (game_state == STATE_ACTIVE) {
         // Rotate.
         if ((button_a_held == 1 || button_c_held == 1) && button_b_held != 1) try_rotate(1);
-        else if ((button_a_held != 1 && button_c_held != 1) && button_b_held == 1) try_rotate(-1);
+        if ((button_a_held != 1 && button_c_held != 1) && button_b_held == 1) try_rotate(-1);
 
         // Move.
-        if (button_l_held == 1 || button_l_held > current_timing->das) try_move(-1);
-        else if (button_r_held == 1 || button_r_held > current_timing->das) try_move(1);
+        if ((button_l_held > 0) && (button_r_held > 0)) {
+            button_l_held = 0;
+            button_r_held = 0;
+        } else if (button_l_held == 1 || button_l_held > current_timing->das) {
+            try_move(-1);
+        } else if (button_r_held == 1 || button_r_held > current_timing->das) {
+            try_move(1);
+        }
 
         // Gravity.
         accumulated_g += current_timing->g;
-        if (accumulated_g < 256 && button_d_held > 0) accumulated_g += 256;
+        // Soft drop.
+        if (current_timing->g < 256 && button_d_held > 0) accumulated_g = 256;
+        // Sonic drop.
         if (button_u_held == 1) accumulated_g += 20*256;
         if (accumulated_g >= 256) {
             int8_t start_y = current_piece.y;
@@ -913,6 +927,7 @@ bool state_machine_tick() {
         // Lock?
         if (piece_grounded()) {
             current_piece.lock_delay--;
+            // Soft lock.
             if (button_d_held > 0) current_piece.lock_delay = 0;
             current_piece.lock_param = (float)current_piece.lock_delay / (float)current_timing->lock;
             if (current_piece.lock_delay == 0) {
