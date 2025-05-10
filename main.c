@@ -4,310 +4,27 @@
 #include <SDL3_image/SDL_image.h>
 #include <SDL3/SDL_timer.h>
 #include <stdint.h>
-#include <time.h>
-#include "block.h"
-#include "lineclear.h"
-#include "linecollapse.h"
-#include "pieceland.h"
-#include "piecelock.h"
-#include "irs.h"
-#include "ready.h"
-#include "go.h"
+#include "rng.h"
+#include "game_data.h"
+#include "game_config.h"
+#include "input_utils.h"
 
-// Offset of the field from the top left of the window.
-const float FIELD_X_OFFSET = 16.0f;
-const float FIELD_Y_OFFSET = 16.0f * 5.0f;
-
-// Render scale.
-int render_scale = 2;
-
-// Buttons.
-const int BUTTON_U = SDL_SCANCODE_W;
-const int BUTTON_L = SDL_SCANCODE_A;
-const int BUTTON_D = SDL_SCANCODE_S;
-const int BUTTON_R = SDL_SCANCODE_D;
-const int BUTTON_A = SDL_SCANCODE_J;
-const int BUTTON_B = SDL_SCANCODE_K;
-const int BUTTON_C = SDL_SCANCODE_L;
-const int BUTTON_RESET = SDL_SCANCODE_R;
-const int BUTTON_QUIT = SDL_SCANCODE_ESCAPE;
-const int BUTTON_SCALE_UP = SDL_SCANCODE_EQUALS;
-const int BUTTON_SCALE_DOWN = SDL_SCANCODE_MINUS;
-const int BUTTON_MUTE = SDL_SCANCODE_P;
-int button_u_held = 0;
-int button_l_held = 0;
-int button_d_held = 0;
-int button_r_held = 0;
-int button_a_held = 0;
-int button_b_held = 0;
-int button_c_held = 0;
-int button_reset_held = 0;
-int button_quit_held = 0;
-int button_scale_up_held = 0;
-int button_scale_down_held = 0;
-int button_mute_held = 0;
-
-// Renderer and target.
+// SDL stuff.
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Texture *blockTexture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
 static Uint64 last_time = 0;
 static Uint64 frame_ctr = 0;
+int render_scale = 2;
 
-// Types for game state.
-typedef enum {BLOCK_VOID, BLOCK_X, BLOCK_I, BLOCK_L, BLOCK_O, BLOCK_Z, BLOCK_T, BLOCK_J, BLOCK_S} block_type_t;
-typedef enum {LOCK_LOCKED, LOCK_FLASH, LOCK_UNLOCKED, LOCK_GHOST} lock_status_t;
-typedef struct {
-    block_type_t type;
-    lock_status_t lock_status;
-    float lock_param;
-} block_t;
-typedef struct {
-    block_type_t type;
-    int rotation_state;
-    int x;
-    int y;
-    lock_status_t lock_status;
-    float lock_param;
-    int lock_delay;
-} live_block_t;
-typedef char* rotation_state_t;
-typedef rotation_state_t piece_def_t[4];
-typedef piece_def_t piece_defs_t[9];
-typedef enum {STATE_ARE, STATE_ACTIVE, STATE_LOCKFLASH, STATE_CLEAR, STATE_GAMEOVER, STATE_PAUSED, STATE_BEGIN} game_state_t;
-typedef struct {
-    int level;
-    int g;
-    int are;
-    int line_are;
-    int das;
-    int lock;
-    int clear;
-} timing_t;
 typedef struct {
     uint8_t *wave_data;
     uint32_t wave_data_len;
     SDL_AudioStream *stream;
 } sound_t;
 
-piece_defs_t ROTATION_STATES = {
-    // VOID and X
-    {"", "", "", ""},
-    {"", "", "", ""},
-
-    // BLOCK_I
-    {
-        "    "
-        "IIII"
-        "    "
-        "    ",
-
-        "  I "
-        "  I "
-        "  I "
-        "  I ",
-
-        "    "
-        "IIII"
-        "    "
-        "    ",
-
-        "  I "
-        "  I "
-        "  I "
-        "  I ",
-    },
-
-    // BLOCK_L
-    {
-        "    "
-        "LLL "
-        "L   "
-        "    ",
-
-        " L  "
-        " L  "
-        " LL "
-        "    ",
-
-        "    "
-        "  L "
-        "LLL "
-        "    ",
-
-        "LL  "
-        " L  "
-        " L  "
-        "    ",
-    },
-
-    // BLOCK_O
-    {
-        "    "
-        " OO "
-        " OO "
-        "    ",
-
-        "    "
-        " OO "
-        " OO "
-        "    ",
-
-        "    "
-        " OO "
-        " OO "
-        "    ",
-
-        "    "
-        " OO "
-        " OO "
-        "    ",
-    },
-
-    // BLOCK_Z
-    {
-        "    "
-        "ZZ  "
-        " ZZ "
-        "    ",
-
-        "  Z "
-        " ZZ "
-        " Z  "
-        "    ",
-
-        "    "
-        "ZZ  "
-        " ZZ "
-        "    ",
-
-        "  Z "
-        " ZZ "
-        " Z  "
-        "    "
-    },
-
-    // BLOCK_T
-    {
-        "    "
-        "TTT "
-        " T  "
-        "    ",
-
-        " T  "
-        " TT "
-        " T  "
-        "    ",
-
-        "    "
-        " T  "
-        "TTT "
-        "    ",
-
-        " T  "
-        "TT  "
-        " T  "
-        "    "
-    },
-
-    // BLOCK_J
-    {
-        "    "
-        "JJJ "
-        "  J "
-        "    ",
-
-        " JJ "
-        " J  "
-        " J  "
-        "    ",
-
-        "    "
-        "J   "
-        "JJJ "
-        "    ",
-
-        " J  "
-        " J  "
-        "JJ  "
-        "    "
-    },
-
-
-    // BLOCK_S
-    {
-        "    "
-        " SS "
-        "SS  "
-        "    ",
-
-        "S   "
-        "SS  "
-        " S  "
-        "    ",
-
-        "    "
-        " SS "
-        "SS  "
-        "    ",
-
-        "S   "
-        "SS  "
-        " S  "
-        "    "
-    }
-};
-
-timing_t game_timing[] = {
-    {0,    4,    27, 27, 16, 30, 40},
-    {30,   6,    27, 27, 16, 30, 40},
-    {35,   8,    27, 27, 16, 30, 40},
-    {40,   10,   27, 27, 16, 30, 40},
-    {50,   12,   27, 27, 16, 30, 40},
-    {60,   16,   27, 27, 16, 30, 40},
-    {70,   32,   27, 27, 16, 30, 40},
-    {80,   48,   27, 27, 16, 30, 40},
-    {90,   64,   27, 27, 16, 30, 40},
-    {100,  80,   27, 27, 16, 30, 40},
-    {120,  96,   27, 27, 16, 30, 40},
-    {140,  112,  27, 27, 16, 30, 40},
-    {160,  128,  27, 27, 16, 30, 40},
-    {170,  144,  27, 27, 16, 30, 40},
-    {200,  4,    27, 27, 16, 30, 40},
-    {220,  32,   27, 27, 16, 30, 40},
-    {230,  64,   27, 27, 16, 30, 40},
-    {233,  96,   27, 27, 16, 30, 40},
-    {236,  128,  27, 27, 16, 30, 40},
-    {239,  160,  27, 27, 16, 30, 40},
-    {243,  192,  27, 27, 16, 30, 40},
-    {247,  224,  27, 27, 16, 30, 40},
-    {251,  256,  27, 27, 16, 30, 40},
-    {300,  512,  27, 27, 16, 30, 40},
-    {330,  768,  27, 27, 16, 30, 40},
-    {360,  1024, 27, 27, 16, 30, 40},
-    {400,  1280, 27, 27, 16, 30, 40},
-    {420,  1024, 27, 27, 16, 30, 40},
-    {450,  768,  27, 27, 16, 30, 40},
-    {500,  5120, 27, 27, 10, 30, 25},
-    {601,  5120, 27, 18, 10, 30, 16},
-    {701,  5120, 18, 14, 10, 30, 12},
-    {801,  5120, 14,  8, 10, 30,  6},
-    {901,  5120, 14,  8,  8, 17,  6},
-    {1001, 5120,  8,  8,  8, 16,  6},
-    {1201, 5120,  7,  7,  8, 15,  5},
-    {1501, 5120,  6,  6,  8, 15,  4},
-    {2001, 5120,  5,  5,  7, 12,  3},
-    {2501, 5120,  5,  5,  6, 10,  3},
-    {3001, 5120,  5,  5,  6,  8,  3},
-    {-1,   0,     0,  0,  0,  0,  0}
-};
-
-rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
-    return ROTATION_STATES[piece][rotation_state];
-}
-
-// The current field of locked pieces.
+// Global data.
 block_t field[10][21] = {0};
 block_type_t history[4] = {0};
 block_type_t next_piece;
@@ -337,83 +54,62 @@ sound_t irs_sound;
 sound_t ready_sound;
 sound_t go_sound;
 
+int32_t button_u_held = 0;
+int32_t button_l_held = 0;
+int32_t button_d_held = 0;
+int32_t button_r_held = 0;
+int32_t button_a_held = 0;
+int32_t button_b_held = 0;
+int32_t button_c_held = 0;
+int32_t button_reset_held = 0;
+int32_t button_quit_held = 0;
+int32_t button_scale_up_held = 0;
+int32_t button_scale_down_held = 0;
+int32_t button_mute_held = 0;
+
+rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
+    return ROTATION_STATES[piece][rotation_state];
+}
+
 void apply_scale() {
     SDL_SetWindowSize(window, 12*16*render_scale, 26*16*render_scale);
     SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
 }
 
-void update_inputs() {
+void update_input_state(const bool *state, const int32_t scan_code, int32_t *input_data) {
+    if (state[scan_code]) {
+        if (*input_data < INT32_MAX) {
+            if (*input_data < 0) *input_data = 1;
+            else (*input_data)++;
+        }
+    } else {
+        if (*input_data > INT32_MIN + 1) {
+            if (*input_data > 0) *input_data = -1;
+            else (*input_data)--;
+        }
+    }
+}
+
+void update_input_states() {
     const bool* state = SDL_GetKeyboardState(NULL);
-    if (state[BUTTON_U]) button_u_held++;
-    else button_u_held = 0;
-    if (state[BUTTON_D]) button_d_held++;
-    else button_d_held = 0;
-    if (state[BUTTON_L]) button_l_held++;
-    else button_l_held = 0;
-    if (state[BUTTON_R]) button_r_held++;
-    else button_r_held = 0;
-    if (state[BUTTON_A]) button_a_held++;
-    else button_a_held = 0;
-    if (state[BUTTON_B]) button_b_held++;
-    else button_b_held = 0;
-    if (state[BUTTON_C]) button_c_held++;
-    else button_c_held = 0;
-    if (state[BUTTON_RESET]) button_reset_held++;
-    else button_reset_held = 0;
-    if (state[BUTTON_QUIT]) button_quit_held++;
-    else button_quit_held = 0;
-    if (state[BUTTON_SCALE_DOWN]) button_scale_down_held++;
-    else button_scale_down_held = 0;
-    if (state[BUTTON_SCALE_UP]) button_scale_up_held++;
-    else button_scale_up_held = 0;
-    if (state[BUTTON_MUTE]) button_mute_held++;
-    else button_mute_held = 0;
+    update_input_state(state, BUTTON_U, &button_u_held);
+    update_input_state(state, BUTTON_D, &button_d_held);
+    update_input_state(state, BUTTON_L, &button_l_held);
+    update_input_state(state, BUTTON_R, &button_r_held);
+    update_input_state(state, BUTTON_A, &button_a_held);
+    update_input_state(state, BUTTON_B, &button_b_held);
+    update_input_state(state, BUTTON_C, &button_c_held);
+    update_input_state(state, BUTTON_RESET, &button_reset_held);
+    update_input_state(state, BUTTON_QUIT, &button_quit_held);
+    update_input_state(state, BUTTON_SCALE_DOWN, &button_scale_down_held);
+    update_input_state(state, BUTTON_SCALE_UP, &button_scale_up_held);
+    update_input_state(state, BUTTON_MUTE, &button_mute_held);
 }
 
 void play_sound(const sound_t *sound) {
     if (muted) return;
     SDL_ClearAudioStream(sound->stream);
     SDL_PutAudioStreamData(sound->stream, sound->wave_data, (int)sound->wave_data_len);
-}
-
-// SDL hit-test that marks the entire window as draggable.
-SDL_HitTestResult HitTest(SDL_Window *win, const SDL_Point *area, void *data) {
-    return SDL_HITTEST_DRAGGABLE;
-}
-
-// Splitmix64 generator for seeding.
-uint64_t splitmix_state;
-static uint64_t xoroshiro_state[4];
-uint64_t splitmix_next() {
-    splitmix_state += 0x9e3779b97f4a7c15ULL;
-    uint64_t z = splitmix_state;
-    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
-    return z ^ (z >> 31);
-}
-
-static uint64_t rotl(const uint64_t x, const int k) {
-    return (x << k) | (x >> (64 - k));
-}
-
-uint64_t xoroshiro_next() {
-    const uint64_t result = rotl(xoroshiro_state[1] * 5, 7) * 9;
-    const uint64_t t = xoroshiro_state[1] << 17;
-    xoroshiro_state[2] ^= xoroshiro_state[0];
-    xoroshiro_state[3] ^= xoroshiro_state[1];
-    xoroshiro_state[1] ^= xoroshiro_state[2];
-    xoroshiro_state[0] ^= xoroshiro_state[3];
-    xoroshiro_state[2] ^= t;
-    xoroshiro_state[3] = rotl(xoroshiro_state[3], 45);
-    return result;
-}
-
-void seed_rng() {
-    splitmix_state = time(NULL);
-    xoroshiro_state[0] = splitmix_next();
-    xoroshiro_state[1] = splitmix_next();
-    xoroshiro_state[2] = splitmix_next();
-    xoroshiro_state[3] = splitmix_next();
 }
 
 void increment_level(const int lines) {
@@ -635,8 +331,8 @@ void generate_next_piece() {
     current_piece.lock_delay = current_timing->lock;
 
     // Apply IRS.
-    if ((button_a_held > 0 || button_c_held > 0) && button_b_held == 0) current_piece.rotation_state = 1;
-    if ((button_a_held == 0 && button_c_held == 0) && button_b_held > 0) current_piece.rotation_state = 3;
+    if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 1;
+    if ((IS_RELEASED(button_a_held)&& IS_RELEASED(button_c_held)) && IS_HELD(button_b_held)) current_piece.rotation_state = 3;
     if (current_piece.rotation_state != 0) {
         if (piece_collides(current_piece) != -1) current_piece.rotation_state = 0;
         else play_sound(&irs_sound);
@@ -644,6 +340,7 @@ void generate_next_piece() {
 
     if (current_timing->g == 5120) {
         for (int i = 0; i < 20; i++) try_descend();
+        if (IS_RELEASED(button_d_held)) play_sound(&pieceland_sound);
     }
 }
 
@@ -891,16 +588,16 @@ float lerp(const float a, const float b, const float f) {
 
 bool state_machine_tick() {
     // Get input.
-    update_inputs();
+    update_input_states();
 
     // Quit?
-    if (button_quit_held != 0) return false;
+    if (IS_JUST_HELD(button_quit_held)) return false;
 
     // Mute?
-    if (button_mute_held == 1) muted = !muted;
+    if (IS_JUST_HELD(button_mute_held)) muted = !muted;
 
     // Reset?
-    if (button_reset_held == 1) {
+    if (IS_JUST_HELD(button_reset_held)) {
         generate_first_piece();
         memset(field, 0, sizeof field);
         game_state = STATE_BEGIN;
@@ -917,10 +614,10 @@ bool state_machine_tick() {
     }
 
     // Rescale?
-    if (button_scale_down_held == 1 && render_scale != 1) {
+    if (IS_JUST_HELD(button_scale_down_held) && render_scale != 1) {
         render_scale--;
         apply_scale();
-    } else if (button_scale_up_held == 1) {
+    } else if (IS_JUST_HELD(button_scale_up_held)) {
         render_scale++;
         apply_scale();
     }
@@ -951,33 +648,36 @@ bool state_machine_tick() {
                 game_state_ctr = 10 * 21 + 1;
             } else {
                 game_state = STATE_ACTIVE;
+                game_state_ctr = -1;
             }
         }
     } else if (game_state == STATE_ACTIVE) {
-        bool was_grounded = piece_grounded();
+        game_state_ctr++;
+        const bool was_grounded = piece_grounded();
 
         // Rotate.
-        if ((button_a_held == 1 || button_c_held == 1) && button_b_held != 1) try_rotate(1);
-        if ((button_a_held != 1 && button_c_held != 1) && button_b_held == 1) try_rotate(-1);
+        if ((IS_JUST_HELD(button_a_held) || IS_JUST_HELD(button_c_held)) && !IS_JUST_HELD(button_b_held)) try_rotate(1);
+        if ((!IS_JUST_HELD(button_a_held) && !IS_JUST_HELD(button_c_held)) && IS_JUST_HELD(button_b_held)) try_rotate(-1);
 
         // Move.
-        if ((button_l_held > 0) && (button_r_held > 0)) {
+        if (IS_HELD(button_l_held) && IS_HELD(button_r_held)) {
             button_l_held = 0;
             button_r_held = 0;
-        } else if (button_l_held == 1 || button_l_held > current_timing->das) {
+        } else if (IS_JUST_HELD(button_l_held) || IS_HELD_FOR_AT_LEAST(button_l_held, current_timing->das)) {
             try_move(-1);
-        } else if (button_r_held == 1 || button_r_held > current_timing->das) {
+        } else if (IS_JUST_HELD(button_r_held) || IS_HELD_FOR_AT_LEAST(button_r_held, current_timing->das)) {
             try_move(1);
         }
 
         // Gravity.
         accumulated_g += current_timing->g;
         // Soft drop.
-        if (current_timing->g < 256 && button_d_held > 0) accumulated_g = 256;
+        if (current_timing->g < 256 && IS_HELD(button_d_held)) accumulated_g = 256;
         // Sonic drop.
-        if (button_u_held == 1) accumulated_g += 20*256;
+        if (IS_JUST_HELD(button_u_held) || (IS_HELD(button_u_held) > 0 && game_state_ctr > 0)) accumulated_g += 20*256;
+
+        const int start_y = current_piece.y;
         if (accumulated_g >= 256) {
-            const int start_y = current_piece.y;
             while (accumulated_g >= 256) {
                 try_descend();
                 accumulated_g -= 256;
@@ -990,10 +690,10 @@ bool state_machine_tick() {
 
         // Lock?
         if (piece_grounded()) {
-            if (!was_grounded && button_d_held == 0) play_sound(&pieceland_sound);
+            if ((!was_grounded || start_y != current_piece.y) && IS_RELEASED(button_d_held)) play_sound(&pieceland_sound);
             current_piece.lock_delay--;
             // Soft lock.
-            if (button_d_held > 0) current_piece.lock_delay = 0;
+            if (IS_HELD(button_d_held)) current_piece.lock_delay = 0;
             current_piece.lock_param = (float)current_piece.lock_delay / (float)current_timing->lock;
             if (current_piece.lock_delay == 0) {
                 play_sound(&piecelock_sound);
@@ -1043,6 +743,10 @@ bool state_machine_tick() {
     }
 
     return true;
+}
+
+SDL_HitTestResult HitTest(SDL_Window *win, const SDL_Point *area, void *data) {
+    return SDL_HITTEST_DRAGGABLE;
 }
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
