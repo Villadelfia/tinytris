@@ -343,6 +343,7 @@ void generate_next_piece() {
     // Apply IRS.
     if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 1;
     if ((IS_RELEASED(button_a_held)&& IS_RELEASED(button_c_held)) && IS_HELD(button_b_held)) current_piece.rotation_state = 3;
+    if ((IS_HELD(button_a_held) && IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 2;
     if (current_piece.rotation_state != 0) {
         if (piece_collides(current_piece) != -1) current_piece.rotation_state = 0;
         else play_sound(&irs_sound);

@@ -1,7 +1,7 @@
 #pragma once
 
 const int32_t BUTTON_U = SDL_SCANCODE_W;
-const int32_t BUTTON_HARD_DROP = SDL_SCANCODE_N;
+const int32_t BUTTON_HARD_DROP = SDL_SCANCODE_U;
 const int32_t BUTTON_L = SDL_SCANCODE_A;
 const int32_t BUTTON_D = SDL_SCANCODE_S;
 const int32_t BUTTON_R = SDL_SCANCODE_D;
