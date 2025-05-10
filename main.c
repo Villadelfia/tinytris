@@ -12,7 +12,7 @@
 // SDL stuff.
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
-static SDL_Texture *blockTexture = NULL;
+static SDL_Texture *block_texture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
 static Uint64 last_time = 0;
 static Uint64 frame_ctr = 0;
@@ -415,9 +415,9 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             break;
     }
 
-    SDL_SetTextureColorModFloat(blockTexture, mod, mod, mod);
-    SDL_SetTextureAlphaModFloat(blockTexture, moda);
-    SDL_RenderTexture(renderer, blockTexture, &src, &dest);
+    SDL_SetTextureColorModFloat(block_texture, mod, mod, mod);
+    SDL_SetTextureAlphaModFloat(block_texture, moda);
+    SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
     Uint8 r, g, b, a;
     SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
@@ -745,7 +745,7 @@ bool state_machine_tick() {
     return true;
 }
 
-SDL_HitTestResult HitTest(SDL_Window *win, const SDL_Point *area, void *data) {
+SDL_HitTestResult window_hit_test(SDL_Window *win, const SDL_Point *area, void *data) {
     return SDL_HITTEST_DRAGGABLE;
 }
 
@@ -761,12 +761,12 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
 
     // Make the window entirely draggable.
-    SDL_SetWindowHitTest(window, HitTest, NULL);
+    SDL_SetWindowHitTest(window, window_hit_test, NULL);
 
     // Load the image for a block.
     SDL_IOStream *t = SDL_IOFromMem(block, sizeof block);
-    blockTexture = IMG_LoadTexture_IO(renderer, t, true);
-    SDL_SetTextureScaleMode(blockTexture, SDL_SCALEMODE_NEAREST);
+    block_texture = IMG_LoadTexture_IO(renderer, t, true);
+    SDL_SetTextureScaleMode(block_texture, SDL_SCALEMODE_NEAREST);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
