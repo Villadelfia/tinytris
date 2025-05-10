@@ -1,2 +1,4 @@
 /cmake-*
 /.idea
+bin2c.exe
+*.wav

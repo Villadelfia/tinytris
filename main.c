@@ -6,6 +6,13 @@
 #include <stdint.h>
 #include <time.h>
 #include "block.h"
+#include "lineclear.h"
+#include "linecollapse.h"
+#include "pieceland.h"
+#include "piecelock.h"
+#include "irs.h"
+#include "ready.h"
+#include "go.h"
 
 // Offset of the field from the top left of the window.
 const float FIELD_X_OFFSET = 16.0f;
@@ -26,6 +33,7 @@ const int BUTTON_RESET = SDL_SCANCODE_R;
 const int BUTTON_QUIT = SDL_SCANCODE_ESCAPE;
 const int BUTTON_SCALE_UP = SDL_SCANCODE_EQUALS;
 const int BUTTON_SCALE_DOWN = SDL_SCANCODE_MINUS;
+const int BUTTON_MUTE = SDL_SCANCODE_P;
 int button_u_held = 0;
 int button_l_held = 0;
 int button_d_held = 0;
@@ -37,11 +45,13 @@ int button_reset_held = 0;
 int button_quit_held = 0;
 int button_scale_up_held = 0;
 int button_scale_down_held = 0;
+int button_mute_held = 0;
 
 // Renderer and target.
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Texture *blockTexture = NULL;
+static SDL_AudioDeviceID audio_device = 0;
 static Uint64 last_time = 0;
 static Uint64 frame_ctr = 0;
 
@@ -75,6 +85,11 @@ typedef struct {
     int lock;
     int clear;
 } timing_t;
+typedef struct {
+    uint8_t *wave_data;
+    uint32_t wave_data_len;
+    SDL_AudioStream *stream;
+} sound_t;
 
 piece_defs_t ROTATION_STATES = {
     // VOID and X
@@ -312,6 +327,15 @@ timing_t *current_timing;
 int accumulated_g = 0;
 int lines_cleared = 0;
 int clears[4] = {-1, -1, -1, -1};
+bool muted = false;
+
+sound_t lineclear_sound;
+sound_t linecollapse_sound;
+sound_t pieceland_sound;
+sound_t piecelock_sound;
+sound_t irs_sound;
+sound_t ready_sound;
+sound_t go_sound;
 
 void apply_scale() {
     SDL_SetWindowSize(window, 12*16*render_scale, 26*16*render_scale);
@@ -342,6 +366,14 @@ void update_inputs() {
     else button_scale_down_held = 0;
     if (state[BUTTON_SCALE_UP]) button_scale_up_held++;
     else button_scale_up_held = 0;
+    if (state[BUTTON_MUTE]) button_mute_held++;
+    else button_mute_held = 0;
+}
+
+void play_sound(const sound_t *sound) {
+    if (muted) return;
+    SDL_ClearAudioStream(sound->stream);
+    SDL_PutAudioStreamData(sound->stream, sound->wave_data, (int)sound->wave_data_len);
 }
 
 // SDL hit-test that marks the entire window as draggable.
@@ -605,7 +637,10 @@ void generate_next_piece() {
     // Apply IRS.
     if ((button_a_held > 0 || button_c_held > 0) && button_b_held == 0) current_piece.rotation_state = 1;
     if ((button_a_held == 0 && button_c_held == 0) && button_b_held > 0) current_piece.rotation_state = 3;
-    if (current_piece.rotation_state != 0 && piece_collides(current_piece) != -1) current_piece.rotation_state = 0;
+    if (current_piece.rotation_state != 0) {
+        if (piece_collides(current_piece) != -1) current_piece.rotation_state = 0;
+        else play_sound(&irs_sound);
+    }
 
     if (current_timing->g == 5120) {
         for (int i = 0; i < 20; i++) try_descend();
@@ -861,6 +896,9 @@ bool state_machine_tick() {
     // Quit?
     if (button_quit_held != 0) return false;
 
+    // Mute?
+    if (button_mute_held == 1) muted = !muted;
+
     // Reset?
     if (button_reset_held == 1) {
         generate_first_piece();
@@ -874,6 +912,7 @@ bool state_machine_tick() {
         border_r = 0.1f;
         border_g = 0.1f;
         border_b = 0.9f;
+        play_sound(&ready_sound);
         return true;
     }
 
@@ -892,6 +931,7 @@ bool state_machine_tick() {
         if (game_state_ctr == 0) {
             game_state = STATE_ARE;
             game_state_ctr = 1;
+            play_sound(&go_sound);
         }else if (game_state_ctr <= 3) {
             border_r = border_g = border_b = 1.0f;
         } else {
@@ -914,6 +954,8 @@ bool state_machine_tick() {
             }
         }
     } else if (game_state == STATE_ACTIVE) {
+        bool was_grounded = piece_grounded();
+
         // Rotate.
         if ((button_a_held == 1 || button_c_held == 1) && button_b_held != 1) try_rotate(1);
         if ((button_a_held != 1 && button_c_held != 1) && button_b_held == 1) try_rotate(-1);
@@ -948,11 +990,13 @@ bool state_machine_tick() {
 
         // Lock?
         if (piece_grounded()) {
+            if (!was_grounded && button_d_held == 0) play_sound(&pieceland_sound);
             current_piece.lock_delay--;
             // Soft lock.
             if (button_d_held > 0) current_piece.lock_delay = 0;
             current_piece.lock_param = (float)current_piece.lock_delay / (float)current_timing->lock;
             if (current_piece.lock_delay == 0) {
+                play_sound(&piecelock_sound);
                 current_piece.lock_status = LOCK_FLASH;
                 game_state = STATE_LOCKFLASH;
                 game_state_ctr = 3;
@@ -965,6 +1009,7 @@ bool state_machine_tick() {
         current_piece.type = BLOCK_VOID;
         check_clears();
         if (lines_cleared != 0) {
+            play_sound(&lineclear_sound);
             wipe_cleared();
             game_state_ctr = current_timing->clear;
             game_state = STATE_CLEAR;
@@ -975,6 +1020,7 @@ bool state_machine_tick() {
     } else if (game_state == STATE_CLEAR) {
         game_state_ctr--;
         if (game_state_ctr != 0) return true;
+        play_sound(&linecollapse_sound);
         collapse_clears();
         game_state = STATE_ARE;
         game_state_ctr = current_timing->line_are - 3;
@@ -1006,7 +1052,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
     // Create the window.
     SDL_SetAppMetadata("Tinytris", "1.0", "org.villadelfia.tinytris");
-    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
     SDL_CreateWindowAndRenderer("Tinytris", 12*16*render_scale, 26*16*render_scale, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
     SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
 
@@ -1017,6 +1063,48 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_IOStream *t = SDL_IOFromMem(block, sizeof block);
     blockTexture = IMG_LoadTexture_IO(renderer, t, true);
     SDL_SetTextureScaleMode(blockTexture, SDL_SCALEMODE_NEAREST);
+
+    // Make audio device.
+    audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
+
+    // Load the sounds.
+    SDL_AudioSpec spec;
+    t = SDL_IOFromMem(lineclear, sizeof lineclear);
+    SDL_LoadWAV_IO(t, true, &spec, &lineclear_sound.wave_data, &lineclear_sound.wave_data_len);
+    lineclear_sound.stream = SDL_CreateAudioStream(&spec, NULL);
+    SDL_BindAudioStream(audio_device, lineclear_sound.stream);
+
+    t = SDL_IOFromMem(linecollapse, sizeof linecollapse);
+    SDL_LoadWAV_IO(t, true, &spec, &linecollapse_sound.wave_data, &linecollapse_sound.wave_data_len);
+    linecollapse_sound.stream = SDL_CreateAudioStream(&spec, NULL);
+    SDL_BindAudioStream(audio_device, linecollapse_sound.stream);
+
+    t = SDL_IOFromMem(pieceland, sizeof pieceland);
+    SDL_LoadWAV_IO(t, true, &spec, &pieceland_sound.wave_data, &pieceland_sound.wave_data_len);
+    pieceland_sound.stream = SDL_CreateAudioStream(&spec, NULL);
+    SDL_BindAudioStream(audio_device, pieceland_sound.stream);
+
+    t = SDL_IOFromMem(piecelock, sizeof piecelock);
+    SDL_LoadWAV_IO(t, true, &spec, &piecelock_sound.wave_data, &piecelock_sound.wave_data_len);
+    piecelock_sound.stream = SDL_CreateAudioStream(&spec, NULL);
+    SDL_BindAudioStream(audio_device, piecelock_sound.stream);
+
+    t = SDL_IOFromMem(irs, sizeof irs);
+    SDL_LoadWAV_IO(t, true, &spec, &irs_sound.wave_data, &irs_sound.wave_data_len);
+    irs_sound.stream = SDL_CreateAudioStream(&spec, NULL);
+    SDL_BindAudioStream(audio_device, irs_sound.stream);
+
+    t = SDL_IOFromMem(ready, sizeof ready);
+    SDL_LoadWAV_IO(t, true, &spec, &ready_sound.wave_data, &ready_sound.wave_data_len);
+    ready_sound.stream = SDL_CreateAudioStream(&spec, NULL);
+    SDL_BindAudioStream(audio_device, ready_sound.stream);
+
+    t = SDL_IOFromMem(go, sizeof go);
+    SDL_LoadWAV_IO(t, true, &spec, &go_sound.wave_data, &go_sound.wave_data_len);
+    go_sound.stream = SDL_CreateAudioStream(&spec, NULL);
+    SDL_BindAudioStream(audio_device, go_sound.stream);
+
+    play_sound(&ready_sound);
 
     return SDL_APP_CONTINUE;
 }
