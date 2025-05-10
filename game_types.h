@@ -16,7 +16,8 @@ typedef enum {
     LOCK_LOCKED,
     LOCK_FLASH,
     LOCK_UNLOCKED,
-    LOCK_GHOST
+    LOCK_GHOST,
+    LOCK_NEXT
 } lock_status_t;
 
 typedef struct {

@@ -403,25 +403,33 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
 
     float mod = 1.0f;
     float moda = 1.0f;
+    Uint8 r, g, b, a;
     switch(lockStatus) {
         case LOCK_LOCKED:
             mod = 0.6f;
+            moda = 0.8f;
             break;
         case LOCK_FLASH:
-            Uint8 r, g, b, a;
             SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 192);
             SDL_RenderFillRect(renderer, &dest);
             SDL_SetRenderDrawColor(renderer, r, g, b, a);
             return;
         case LOCK_UNLOCKED:
-            mod = 0.2f + (lockParam * 0.8f);
+            mod = 0.5f + (lockParam * 0.5f);
             voidToLeft = voidToRight = voidAbove = voidBelow = false;
             break;
         case LOCK_GHOST:
-            mod = 0.3f;
-            moda = 0.0f;
+            mod = 0.8f;
+            moda = 0.125f;
             voidToLeft = voidToRight = voidAbove = voidBelow = false;
+            SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 32);
+            SDL_RenderFillRect(renderer, &dest);
+            SDL_SetRenderDrawColor(renderer, r, g, b, a);
+            break;
+        case LOCK_NEXT:
+            moda = 0.8f;
             break;
     }
 
@@ -429,9 +437,8 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     SDL_SetTextureAlphaModFloat(block_texture, moda);
     SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
-    Uint8 r, g, b, a;
     SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
 
     if(voidToLeft) SDL_RenderLine(renderer, dest.x, dest.y, dest.x, dest.y + dest.h - 1);
     if(voidToRight) SDL_RenderLine(renderer, dest.x + dest.w - 1, dest.y, dest.x + dest.w - 1, dest.y + dest.h - 1);
@@ -453,46 +460,46 @@ void render_field_block(const int x, const int y) {
 void render_next_block() {
     switch(next_piece) {
         case BLOCK_I:
-            render_raw_block(3, -4, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(6, -4, BLOCK_I, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(6, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false);
             break;
         case BLOCK_L:
-            render_raw_block(3, -4, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(3, -3, BLOCK_L, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(3, -3, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false);
             break;
         case BLOCK_O:
-            render_raw_block(4, -4, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_O, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false);
             break;
         case BLOCK_Z:
-            render_raw_block(3, -4, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_Z, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false);
             break;
         case BLOCK_T:
-            render_raw_block(3, -4, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_T, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -3, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false);
             break;
         case BLOCK_J:
-            render_raw_block(3, -4, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_J, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -3, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false);
             break;
         case BLOCK_S:
-            render_raw_block(4, -4, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(3, -3, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_S, LOCK_UNLOCKED, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(5, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(3, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false);
             break;
         default:
             return;
@@ -544,13 +551,13 @@ void render_game() {
     SDL_RenderClear(renderer);
 
     // Background.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.3f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.5f);
     SDL_FRect dst = {.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET, .w = 16.0f * 10.0f, .h = 16.0f * 20.0f};
     SDL_RenderFillRect(renderer, &dst);
 
     // Field border.
-    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.4f);
-    else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, 0.4f);
+    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.8f);
+    else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, 0.8f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
     SDL_RenderFillRect(renderer, &dst);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (10.0f * 16.0f), .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
@@ -564,16 +571,16 @@ void render_game() {
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 8, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 16, .h = 2.0f * 16.0f + 8};
     SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.2f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 6, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 12, .h = 2.0f * 16.0f + 8};
     SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.3f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 4, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 8, .h = 2.0f * 16.0f + 8};
     SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.4f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 2, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 4, .h = 2.0f * 16.0f + 8};
     SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.5f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f), .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f, .h = 2.0f * 16.0f + 8};
     SDL_RenderFillRect(renderer, &dst);
 
@@ -712,13 +719,13 @@ bool state_machine_tick() {
                 play_sound(&piecelock_sound);
                 current_piece.lock_status = LOCK_FLASH;
                 game_state = STATE_LOCKFLASH;
+                write_piece(current_piece);
                 game_state_ctr = 3;
             }
         }
     } else if (game_state == STATE_LOCKFLASH) {
         game_state_ctr--;
         if (game_state_ctr != 0) return true;
-        write_piece(current_piece);
         current_piece.type = BLOCK_VOID;
         check_clears();
         if (lines_cleared != 0) {
@@ -772,6 +779,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
     SDL_CreateWindowAndRenderer("Tinytris", 12*16*render_scale, 26*16*render_scale, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
     SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
     // Make the window entirely draggable.
     SDL_SetWindowHitTest(window, window_hit_test, NULL);
@@ -780,6 +788,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_IOStream *t = SDL_IOFromMem(block, sizeof block);
     block_texture = IMG_LoadTexture_IO(renderer, t, true);
     SDL_SetTextureScaleMode(block_texture, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureBlendMode(block_texture, SDL_BLENDMODE_BLEND);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
