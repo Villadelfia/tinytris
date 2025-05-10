@@ -55,12 +55,12 @@ typedef struct {
 } block_t;
 typedef struct {
     block_type_t type;
-    int8_t rotation_state;
-    int8_t x;
-    int8_t y;
+    int rotation_state;
+    int x;
+    int y;
     lock_status_t lock_status;
     float lock_param;
-    int8_t lock_delay;
+    int lock_delay;
 } live_block_t;
 typedef char* rotation_state_t;
 typedef rotation_state_t piece_def_t[4];
@@ -288,7 +288,7 @@ timing_t game_timing[] = {
     {-1,   0,     0,  0,  0,  0,  0}
 };
 
-rotation_state_t get_rotation_state(block_type_t piece, int rotation_state) {
+rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
 }
 
@@ -360,7 +360,7 @@ uint64_t splitmix_next() {
     return z ^ (z >> 31);
 }
 
-static uint64_t rotl(const uint64_t x, int k) {
+static uint64_t rotl(const uint64_t x, const int k) {
     return (x << k) | (x >> (64 - k));
 }
 
@@ -430,7 +430,7 @@ void write_piece(const live_block_t piece) {
     }
 }
 
-void try_move(int direction) {
+void try_move(const int direction) {
     if (current_piece.type == BLOCK_VOID) return;
 
     live_block_t active = current_piece;
@@ -454,7 +454,7 @@ bool piece_grounded() {
     return piece_collides(active) != -1;
 }
 
-void try_rotate(int direction) {
+void try_rotate(const int direction) {
     if (current_piece.type == BLOCK_VOID) return;
 
     live_block_t active = current_piece;
@@ -612,13 +612,13 @@ void generate_next_piece() {
     }
 }
 
-void gray_line(int row) {
+void gray_line(const int row) {
     for (int i = 0; i < 10; i++) {
         if (field[i][row].type != BLOCK_VOID) field[i][row].type = BLOCK_X;
     }
 }
 
-void render_raw_block(int col, int row, block_type_t block, lock_status_t lockStatus, float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow) {
+void render_raw_block(const int col, const int row, const block_type_t block, const lock_status_t lockStatus, const float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow) {
     SDL_FRect src = {0};
     SDL_FRect dest = {
         .x = FIELD_X_OFFSET + ((float)col * 16.0f),
@@ -699,7 +699,7 @@ void render_raw_block(int col, int row, block_type_t block, lock_status_t lockSt
     SDL_SetRenderDrawColor(renderer, r, g, b, a);
 }
 
-void render_field_block(int x, int y) {
+void render_field_block(const int x, const int y) {
     if(x < 0 || x > 9 || y < 1 || y > 20) return;
     bool voidToLeft = x != 0 && field[x-1][y].type == BLOCK_VOID;
     bool voidToRight = x != 9 && field[x+1][y].type == BLOCK_VOID;
@@ -842,16 +842,16 @@ void render_game() {
     render_current_block();
 
     // A bit of info.
-    SDL_SetRenderScale(renderer, render_scale/2.0f, render_scale/2.0f);
+    SDL_SetRenderScale(renderer, (float)render_scale/2.0f, (float)render_scale/2.0f);
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 1.0f);
-    SDL_RenderDebugTextFormat(renderer, 30.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 3) * 2 , "[LVL:%04d] [GRV:%06.3f] [DAS:%02d] [LCK:%02d]", level, current_timing->g/256.0f, current_timing->das, current_timing->lock);
-    SDL_SetRenderScale(renderer, render_scale, render_scale);
+    SDL_RenderDebugTextFormat(renderer, 30.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 3) * 2 , "[LVL:%04d] [GRV:%06.3f] [DAS:%02d] [LCK:%02d]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock);
+    SDL_SetRenderScale(renderer, (float)render_scale, (float)render_scale);
 
     SDL_RenderPresent(renderer);
 }
 
 float lerp(const float a, const float b, const float f) {
-    return a * (1.0 - f) + (b * f);
+    return (float)(a * (1.0 - f) + (b * f));
 }
 
 bool state_machine_tick() {
@@ -935,7 +935,7 @@ bool state_machine_tick() {
         // Sonic drop.
         if (button_u_held == 1) accumulated_g += 20*256;
         if (accumulated_g >= 256) {
-            int8_t start_y = current_piece.y;
+            const int start_y = current_piece.y;
             while (accumulated_g >= 256) {
                 try_descend();
                 accumulated_g -= 256;
