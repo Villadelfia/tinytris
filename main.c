@@ -61,7 +61,7 @@ typedef struct {
 typedef char* rotation_state_t;
 typedef rotation_state_t piece_def_t[4];
 typedef piece_def_t piece_defs_t[9];
-typedef enum {STATE_ARE, STATE_ACTIVE, STATE_LOCKFLASH, STATE_CLEAR, STATE_GAMEOVER} game_state_t;
+typedef enum {STATE_ARE, STATE_ACTIVE, STATE_LOCKFLASH, STATE_CLEAR, STATE_GAMEOVER, STATE_PAUSED, STATE_BEGIN} game_state_t;
 typedef struct {
     int level;
     int g;
@@ -293,8 +293,16 @@ block_t field[10][21] = {0};
 block_type_t history[4] = {0};
 block_type_t next_piece;
 live_block_t current_piece;
-game_state_t game_state = STATE_ARE;
+game_state_t game_state = STATE_BEGIN;
+game_state_t game_state_old = STATE_BEGIN;
 int game_state_ctr = 60;
+int game_state_ctr_old = 60;
+float border_r = 0.1f;
+float border_g = 0.1f;
+float border_b = 0.9f;
+float border_r_old = 0.1f;
+float border_g_old = 0.1f;
+float border_b_old = 0.9f;
 int level = 0;
 timing_t *current_timing;
 int accumulated_g = 0;
@@ -786,8 +794,8 @@ void render_game() {
     SDL_RenderFillRect(renderer, &dst);
 
     // Field border.
-    if (SDL_GetKeyboardFocus() == window) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.4f);
-    else SDL_SetRenderDrawColorFloat(renderer, 0.4f, 0.4f, 0.4f, 0.4f);
+    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.4f);
+    else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, 0.4f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
     SDL_RenderFillRect(renderer, &dst);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (10.0f * 16.0f), .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
@@ -823,6 +831,10 @@ void render_game() {
     SDL_RenderPresent(renderer);
 }
 
+float lerp(const float a, const float b, const float f) {
+    return a * (1.0 - f) + (b * f);
+}
+
 bool state_machine_tick() {
     // Get input.
     update_inputs();
@@ -834,17 +846,32 @@ bool state_machine_tick() {
     if (button_reset_held == 1) {
         generate_first_piece();
         memset(field, 0, sizeof field);
-        game_state = STATE_ARE;
+        game_state = STATE_BEGIN;
         game_state_ctr = 60;
         current_timing = &game_timing[0];
         accumulated_g = 0;
         level = 0;
         lines_cleared = 0;
+        border_r = 0.1f;
+        border_g = 0.1f;
+        border_b = 0.9f;
         return true;
     }
 
     // Do all the logic.
-    if (game_state == STATE_ARE) {
+    if (game_state == STATE_BEGIN) {
+        game_state_ctr--;
+        if (game_state_ctr == 0) {
+            game_state = STATE_ARE;
+            game_state_ctr = 1;
+        }else if (game_state_ctr <= 3) {
+            border_r = border_g = border_b = 1.0f;
+        } else {
+            border_r = lerp(0.9f, 0.1f, (float)(game_state_ctr-3)/57.0f);
+            border_g = lerp(0.1f, 0.1f, (float)(game_state_ctr-3)/57.0f);
+            border_b = lerp(0.1f, 0.9f, (float)(game_state_ctr-3)/57.0f);
+        }
+    } else if (game_state == STATE_ARE) {
         game_state_ctr--;
         if (game_state_ctr == 0) {
             increment_level(lines_cleared);
@@ -918,6 +945,18 @@ bool state_machine_tick() {
         game_state_ctr--;
         if (game_state_ctr == -1) return true;
         gray_line(game_state_ctr / 10);
+    } else if (game_state == STATE_PAUSED) {
+        game_state_ctr--;
+        if (game_state_ctr == 0) {
+            game_state = game_state_old;
+            game_state_ctr = game_state_ctr_old;
+        } else if (game_state_ctr <= 3) {
+            border_r = border_g = border_b = 1.0f;
+        } else {
+            border_r = lerp(border_r_old, 0.4f, (float)(game_state_ctr-3)/57.0f);
+            border_g = lerp(border_g_old, 0.4f, (float)(game_state_ctr-3)/57.0f);
+            border_b = lerp(border_b_old, 0.4f, (float)(game_state_ctr-3)/57.0f);
+        }
     }
 
     return true;
@@ -953,10 +992,30 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 SDL_AppResult SDL_AppIterate(void *appstate) {
     // Handle 1/frame update.
     const Uint64 now = SDL_GetTicksNS();
-    if(now >= last_time + (SDL_NS_PER_SECOND / 60LL) && SDL_GetKeyboardFocus() == window) {
+    if(now >= last_time + (SDL_NS_PER_SECOND / 60LL)) {
         last_time = now;
-        frame_ctr++;
-        if (!state_machine_tick()) return SDL_APP_SUCCESS;
+        if (SDL_GetKeyboardFocus() == window) {
+            frame_ctr++;
+            if (!state_machine_tick()) return SDL_APP_SUCCESS;
+        } else if (game_state != STATE_PAUSED) {
+            game_state_old = game_state;
+            game_state_ctr_old = game_state_ctr;
+            game_state = STATE_PAUSED;
+            game_state_ctr = 60;
+            if (game_state_old == STATE_BEGIN) {
+                border_r_old = border_r;
+                border_g_old = border_g;
+                border_b_old = border_b;
+            } else {
+                border_r_old = 0.9f;
+                border_g_old = 0.1f;
+                border_b_old = 0.1f;
+            }
+            border_r = border_g = border_b = 0.4f;
+        } else if (game_state == STATE_PAUSED) {
+            game_state_ctr = 60;
+            border_r = border_g = border_b = 0.4f;
+        }
     }
 
     // Render the game.
