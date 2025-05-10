@@ -21,8 +21,9 @@ Controls are hardcoded, but easy enough to adjust in the source file.
 - `J/L`: Rotate CCW
 - `K`: Rotate CW
 - `R`: Restart game
+- `Enter`: Begin game
 - `ESC`: Quit game
-- `0`: Toggle between Classic ARS and Ti ARS, shown as [R:2] and [R:3] respectively
+- `0`: Toggle between Classic ARS and Ti ARS, shown as [TAP] and [Ti ] respectively
 - `-`: Scale down
 - `=`: Scale up
 - `P`: Mute/unmute

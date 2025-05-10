@@ -30,8 +30,8 @@ block_t field[10][21] = {0};
 block_type_t history[4] = {0};
 block_type_t next_piece;
 live_block_t current_piece;
-game_state_t game_state = STATE_BEGIN;
-game_state_t game_state_old = STATE_BEGIN;
+game_state_t game_state = STATE_WAIT;
+game_state_t game_state_old = STATE_WAIT;
 int game_state_ctr = 60;
 int game_state_ctr_old = 60;
 float border_r = 0.1f;
@@ -64,6 +64,7 @@ int32_t button_r_held = 0;
 int32_t button_a_held = 0;
 int32_t button_b_held = 0;
 int32_t button_c_held = 0;
+int32_t button_start_held = 0;
 int32_t button_reset_held = 0;
 int32_t button_quit_held = 0;
 int32_t button_scale_up_held = 0;
@@ -105,6 +106,7 @@ void update_input_states() {
     update_input_state(state, BUTTON_A, &button_a_held);
     update_input_state(state, BUTTON_B, &button_b_held);
     update_input_state(state, BUTTON_C, &button_c_held);
+    update_input_state(state, BUTTON_START, &button_start_held);
     update_input_state(state, BUTTON_RESET, &button_reset_held);
     update_input_state(state, BUTTON_QUIT, &button_quit_held);
     update_input_state(state, BUTTON_SCALE_DOWN, &button_scale_down_held);
@@ -646,7 +648,7 @@ void render_game() {
     SDL_RenderFillRect(renderer, &dst);
 
     // Field border.
-    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.8f);
+    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.8f);
     else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, 0.8f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
     SDL_RenderFillRect(renderer, &dst);
@@ -682,8 +684,25 @@ void render_game() {
 
     // A bit of info.
     SDL_SetRenderScale(renderer, (float)render_scale/2.0f, (float)render_scale/2.0f);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 1.0f);
-    SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][R:%d]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock, ti_ars ? 3 : 2);
+    SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
+    SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock, ti_ars ? "Ti " : "TAP");
+
+    if (game_state == STATE_WAIT) {
+        SDL_RenderDebugTextFormat(renderer, 112.0f, (FIELD_Y_OFFSET + (8.0f * 16.0f)) * 2 , "Press ENTER to begin");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (9.0f * 16.0f)) * 2 , "- A/D: Left/right");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (9.5f * 16.0f)) * 2 , "- W: Sonic drop");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (10.0f * 16.0f)) * 2 , "- S: Soft drop");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (10.5f * 16.0f)) * 2 , "- U: Hard drop");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.0f * 16.0f)) * 2 , "- J/L: Rotate CCW");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.5f * 16.0f)) * 2 , "- K: Rotate CW");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.0f * 16.0f)) * 2 , "- R: Restart game");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.5f * 16.0f)) * 2 , "- ESC: Quit game");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.0f * 16.0f)) * 2 , "- 0: Toggle rotation system");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.5f * 16.0f)) * 2 , "- -: Scale down");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.0f * 16.0f)) * 2 , "- =: Scale up");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (24.5f * 16.0f)) * 2 , "- P: Mute/unmute");
+    }
+
     SDL_SetRenderScale(renderer, (float)render_scale, (float)render_scale);
 
     SDL_RenderPresent(renderer);
@@ -713,7 +732,7 @@ bool state_machine_tick() {
     if (IS_JUST_HELD(button_reset_held)) {
         generate_first_piece();
         memset(field, 0, sizeof field);
-        game_state = STATE_BEGIN;
+        game_state = STATE_WAIT;
         game_state_ctr = 60;
         current_timing = &game_timing[0];
         accumulated_g = 0;
@@ -722,7 +741,6 @@ bool state_machine_tick() {
         border_r = 0.1f;
         border_g = 0.1f;
         border_b = 0.9f;
-        play_sound(&ready_sound);
         return true;
     }
 
@@ -736,7 +754,13 @@ bool state_machine_tick() {
     }
 
     // Do all the logic.
-    if (game_state == STATE_BEGIN) {
+    if (game_state == STATE_WAIT) {
+        if (IS_JUST_HELD(button_start_held)) {
+            game_state = STATE_BEGIN;
+            game_state_ctr = 60;
+            play_sound(&ready_sound);
+        }
+    } else if (game_state == STATE_BEGIN) {
         game_state_ctr--;
         if (game_state_ctr == 0) {
             game_state = STATE_ARE;
@@ -927,8 +951,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     go_sound.stream = SDL_CreateAudioStream(&spec, NULL);
     SDL_BindAudioStream(audio_device, go_sound.stream);
 
-    play_sound(&ready_sound);
-
     last_time = SDL_GetTicksNS();
 
     return SDL_APP_CONTINUE;
@@ -942,7 +964,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 SDL_AppResult SDL_AppIterate(void *appstate) {
     if (SDL_GetKeyboardFocus() == window) {
         if (!state_machine_tick()) return SDL_APP_SUCCESS;
-    } else if (game_state != STATE_PAUSED) {
+    } else if (game_state != STATE_PAUSED && game_state != STATE_WAIT) {
         game_state_old = game_state;
         game_state_ctr_old = game_state_ctr;
         game_state = STATE_PAUSED;

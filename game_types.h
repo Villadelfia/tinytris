@@ -52,7 +52,8 @@ typedef enum {
     STATE_CLEAR,
     STATE_GAMEOVER,
     STATE_PAUSED,
-    STATE_BEGIN
+    STATE_BEGIN,
+    STATE_WAIT
 } game_state_t;
 
 typedef struct {
