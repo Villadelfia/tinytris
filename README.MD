@@ -15,6 +15,7 @@ Controls are hardcoded, but easy enough to adjust in the source file.
 - `ESC`: Quit game
 - `-`: Scale down
 - `=`: Scale up
+- `P`: Mute/unmute.
 
 ## Features
 
