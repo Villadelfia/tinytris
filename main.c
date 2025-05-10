@@ -14,6 +14,9 @@ static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Texture *block_texture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
+#define FRAME_TIME (SDL_NS_PER_SECOND / SDL_SINT64_C(60))
+static Uint64 last_time = 0;
+static Sint64 accumulated_time = 0;
 int render_scale = 2;
 
 typedef struct {
@@ -833,6 +836,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
     play_sound(&ready_sound);
 
+    last_time = SDL_GetTicksNS();
+
     return SDL_APP_CONTINUE;
 }
 
@@ -868,7 +873,20 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     render_game();
 
     // Delay until next frame.
-    SDL_DelayPrecise(SDL_NS_PER_SECOND / 60LL);
+    if (accumulated_time > FRAME_TIME + SDL_NS_PER_MS * SDL_SINT64_C(100)) {
+        // Reset if we're way off target (windowing system stuff can cause
+        // that).
+        accumulated_time = SDL_SINT64_C(0);
+        last_time = SDL_GetTicksNS();
+    } else {
+        const Uint64 initial_time = (SDL_GetTicksNS() - last_time) + accumulated_time;
+        if (initial_time < FRAME_TIME) {
+            SDL_DelayPrecise(FRAME_TIME - initial_time);
+        }
+        const Uint64 now = SDL_GetTicksNS();
+        accumulated_time += (now - last_time) - FRAME_TIME;
+        last_time = now;
+    }
 
     return SDL_APP_CONTINUE;
 }
