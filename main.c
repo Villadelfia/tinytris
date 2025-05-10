@@ -45,6 +45,7 @@ int accumulated_g = 0;
 int lines_cleared = 0;
 int clears[4] = {-1, -1, -1, -1};
 bool muted = false;
+bool mystery = false;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -66,6 +67,7 @@ int32_t button_quit_held = 0;
 int32_t button_scale_up_held = 0;
 int32_t button_scale_down_held = 0;
 int32_t button_mute_held = 0;
+int32_t button_mystery_held = 0;
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -104,6 +106,7 @@ void update_input_states() {
     update_input_state(state, BUTTON_SCALE_DOWN, &button_scale_down_held);
     update_input_state(state, BUTTON_SCALE_UP, &button_scale_up_held);
     update_input_state(state, BUTTON_MUTE, &button_mute_held);
+    update_input_state(state, BUTTON_MYSTERY, &button_mystery_held);
 }
 
 void play_sound(const sound_t *sound) {
@@ -163,7 +166,14 @@ void try_move(const int direction) {
 
     live_block_t active = current_piece;
     active.x += direction;
-    if (piece_collides(active) == -1) current_piece.x += direction;
+    if (piece_collides(active) == -1) {
+        current_piece.x += direction;
+    } else if (mystery) {
+        int x, y;
+        if (SDL_GetWindowPosition(window, &x, &y)) {
+            SDL_SetWindowPosition(window, x+(direction*(render_scale*16)), y);
+        }
+    }
 }
 
 void try_descend() {
@@ -595,6 +605,9 @@ bool state_machine_tick() {
 
     // Mute?
     if (IS_JUST_HELD(button_mute_held)) muted = !muted;
+
+    // Huh?
+    if (IS_JUST_HELD(button_mystery_held)) mystery = !mystery;
 
     // Reset?
     if (IS_JUST_HELD(button_reset_held)) {
