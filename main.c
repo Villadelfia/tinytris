@@ -162,7 +162,7 @@ void increment_level(const int lines) {
 int piece_collides(const live_block_t piece) {
     if (piece.type == BLOCK_VOID) return -1;
 
-    rotation_state_t rotation = get_rotation_state(piece.type, piece.rotation_state);
+    const rotation_state_t rotation = get_rotation_state(piece.type, piece.rotation_state);
 
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
@@ -180,7 +180,7 @@ int piece_collides(const live_block_t piece) {
 void write_piece(const live_block_t piece) {
     if (piece.type == BLOCK_VOID) return;
 
-    rotation_state_t rotation = get_rotation_state(piece.type, piece.rotation_state);
+    const rotation_state_t rotation = get_rotation_state(piece.type, piece.rotation_state);
 
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
@@ -251,7 +251,7 @@ void try_rotate(const int direction) {
     if (active.rotation_state < 0) active.rotation_state = 3;
     if (active.rotation_state > 3) active.rotation_state = 0;
 
-    int collision = piece_collides(active);
+    const int collision = piece_collides(active);
     if (collision == -1) {
         current_piece.rotation_state = active.rotation_state;
         return;
@@ -478,7 +478,7 @@ void gray_line(const int row) {
 
 void render_raw_block(const int col, const int row, const block_type_t block, const lock_status_t lockStatus, const float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow) {
     SDL_FRect src = {0};
-    SDL_FRect dest = {
+    const SDL_FRect dest = {
         .x = FIELD_X_OFFSET + ((float)col * 16.0f),
         .y = FIELD_Y_OFFSET + ((float)row * 16.0f),
         .w = 16.0f,
@@ -519,17 +519,14 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
 
     float mod = 1.0f;
     float moda = 1.0f;
-    Uint8 r, g, b, a;
     switch(lockStatus) {
         case LOCK_LOCKED:
             mod = 0.6f;
             moda = 0.8f;
             break;
         case LOCK_FLASH:
-            SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 192);
             SDL_RenderFillRect(renderer, &dest);
-            SDL_SetRenderDrawColor(renderer, r, g, b, a);
             return;
         case LOCK_UNLOCKED:
             mod = 0.5f + (lockParam * 0.5f);
@@ -539,10 +536,8 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             mod = 0.8f;
             moda = 0.125f;
             voidToLeft = voidToRight = voidAbove = voidBelow = false;
-            SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
             SDL_SetRenderDrawColor(renderer, 200, 200, 200, 32);
             SDL_RenderFillRect(renderer, &dest);
-            SDL_SetRenderDrawColor(renderer, r, g, b, a);
             break;
         case LOCK_NEXT:
             moda = 0.8f;
@@ -553,23 +548,20 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     SDL_SetTextureAlphaModFloat(block_texture, moda);
     SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
-    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
     SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
 
     if(voidToLeft) SDL_RenderLine(renderer, dest.x, dest.y, dest.x, dest.y + dest.h - 1);
     if(voidToRight) SDL_RenderLine(renderer, dest.x + dest.w - 1, dest.y, dest.x + dest.w - 1, dest.y + dest.h - 1);
     if(voidAbove) SDL_RenderLine(renderer, dest.x, dest.y, dest.x + dest.w - 1, dest.y);
     if(voidBelow) SDL_RenderLine(renderer, dest.x, dest.y + dest.h - 1, dest.x + dest.w - 1, dest.y + dest.h - 1);
-
-    SDL_SetRenderDrawColor(renderer, r, g, b, a);
 }
 
 void render_field_block(const int x, const int y) {
     if(x < 0 || x > 9 || y < 1 || y > 20) return;
-    bool voidToLeft = x != 0 && field[x-1][y].type == BLOCK_VOID;
-    bool voidToRight = x != 9 && field[x+1][y].type == BLOCK_VOID;
-    bool voidAbove = y != 1 && field[x][y-1].type == BLOCK_VOID;
-    bool voidBelow = y != 20 && field[x][y+1].type == BLOCK_VOID;
+    const bool voidToLeft = x != 0 && field[x-1][y].type == BLOCK_VOID;
+    const bool voidToRight = x != 9 && field[x+1][y].type == BLOCK_VOID;
+    const bool voidAbove = y != 1 && field[x][y-1].type == BLOCK_VOID;
+    const bool voidBelow = y != 20 && field[x][y+1].type == BLOCK_VOID;
     render_raw_block(x, y-1, field[x][y].type, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow);
 }
 
@@ -625,7 +617,7 @@ void render_next_block() {
 void render_current_block() {
     if(current_piece.type == BLOCK_VOID) return;
 
-    rotation_state_t rotation = get_rotation_state(current_piece.type, current_piece.rotation_state);
+    const rotation_state_t rotation = get_rotation_state(current_piece.type, current_piece.rotation_state);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
@@ -1023,7 +1015,7 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
             SDL_DelayPrecise(FRAME_TIME - initial_time);
         }
         const Uint64 now = SDL_GetTicksNS();
-        accumulated_time += (now - last_time) - FRAME_TIME;
+        accumulated_time += (Sint64)(now - last_time) - FRAME_TIME;
         last_time = now;
     }
 
