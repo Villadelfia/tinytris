@@ -14,8 +14,6 @@ static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Texture *block_texture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
-static Uint64 last_time = 0;
-static Uint64 frame_ctr = 0;
 int render_scale = 2;
 
 typedef struct {
@@ -710,7 +708,7 @@ bool state_machine_tick() {
 
         // Lock?
         if (piece_grounded()) {
-            if ((!was_grounded || start_y != current_piece.y) && IS_RELEASED(button_d_held)) play_sound(&pieceland_sound);
+            if (!was_grounded || start_y != current_piece.y) play_sound(&pieceland_sound);
             current_piece.lock_delay--;
             // Soft lock.
             if (IS_HELD(button_d_held)) current_piece.lock_delay = 0;
@@ -841,36 +839,33 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 }
 
 SDL_AppResult SDL_AppIterate(void *appstate) {
-    // Handle 1/frame update.
-    const Uint64 now = SDL_GetTicksNS();
-    if(now >= last_time + (SDL_NS_PER_SECOND / 60LL)) {
-        last_time = now;
-        if (SDL_GetKeyboardFocus() == window) {
-            frame_ctr++;
-            if (!state_machine_tick()) return SDL_APP_SUCCESS;
-        } else if (game_state != STATE_PAUSED) {
-            game_state_old = game_state;
-            game_state_ctr_old = game_state_ctr;
-            game_state = STATE_PAUSED;
-            game_state_ctr = 60;
-            if (game_state_old == STATE_BEGIN) {
-                border_r_old = border_r;
-                border_g_old = border_g;
-                border_b_old = border_b;
-            } else {
-                border_r_old = 0.9f;
-                border_g_old = 0.1f;
-                border_b_old = 0.1f;
-            }
-            border_r = border_g = border_b = 0.4f;
-        } else if (game_state == STATE_PAUSED) {
-            game_state_ctr = 60;
-            border_r = border_g = border_b = 0.4f;
+    if (SDL_GetKeyboardFocus() == window) {
+        if (!state_machine_tick()) return SDL_APP_SUCCESS;
+    } else if (game_state != STATE_PAUSED) {
+        game_state_old = game_state;
+        game_state_ctr_old = game_state_ctr;
+        game_state = STATE_PAUSED;
+        game_state_ctr = 60;
+        if (game_state_old == STATE_BEGIN) {
+            border_r_old = border_r;
+            border_g_old = border_g;
+            border_b_old = border_b;
+        } else {
+            border_r_old = 0.9f;
+            border_g_old = 0.1f;
+            border_b_old = 0.1f;
         }
+        border_r = border_g = border_b = 0.4f;
+    } else if (game_state == STATE_PAUSED) {
+        game_state_ctr = 60;
+        border_r = border_g = border_b = 0.4f;
     }
 
     // Render the game.
     render_game();
+
+    // Delay until next frame.
+    SDL_DelayPrecise(SDL_NS_PER_SECOND / 60LL);
 
     return SDL_APP_CONTINUE;
 }
