@@ -12,6 +12,7 @@
 // SDL stuff.
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
+static SDL_Gamepad *gamepad = NULL;
 static SDL_Texture *block_texture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
 #define FRAME_TIME (SDL_NS_PER_SECOND / SDL_SINT64_C(60))
@@ -83,8 +84,18 @@ void apply_scale() {
     SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
 }
 
-void update_input_state(const bool *state, const int32_t scan_code, int32_t *input_data) {
-    if (state[scan_code]) {
+void update_input_state(const bool *state, const int32_t scan_code, const SDL_GamepadButton button, int32_t *input_data) {
+    bool pressed = false;
+    if (gamepad != NULL) {
+        if (SDL_GetGamepadButton(gamepad, button)) pressed = true;
+        if (button == GAMEPAD_U && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY) < -10000) pressed = true;
+        if (button == GAMEPAD_D && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY) > 10000) pressed = true;
+        if (button == GAMEPAD_L && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX) < -10000) pressed = true;
+        if (button == GAMEPAD_R && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX) > 10000) pressed = true;
+    }
+    if (state[scan_code]) pressed = true;
+
+    if (pressed) {
         if (*input_data < INT32_MAX) {
             if (*input_data < 0) *input_data = 1;
             else (*input_data)++;
@@ -99,22 +110,22 @@ void update_input_state(const bool *state, const int32_t scan_code, int32_t *inp
 
 void update_input_states() {
     const bool* state = SDL_GetKeyboardState(NULL);
-    update_input_state(state, BUTTON_U, &button_u_held);
-    update_input_state(state, BUTTON_D, &button_d_held);
-    update_input_state(state, BUTTON_L, &button_l_held);
-    update_input_state(state, BUTTON_R, &button_r_held);
-    update_input_state(state, BUTTON_A, &button_a_held);
-    update_input_state(state, BUTTON_B, &button_b_held);
-    update_input_state(state, BUTTON_C, &button_c_held);
-    update_input_state(state, BUTTON_START, &button_start_held);
-    update_input_state(state, BUTTON_RESET, &button_reset_held);
-    update_input_state(state, BUTTON_QUIT, &button_quit_held);
-    update_input_state(state, BUTTON_SCALE_DOWN, &button_scale_down_held);
-    update_input_state(state, BUTTON_SCALE_UP, &button_scale_up_held);
-    update_input_state(state, BUTTON_TOGGLE_ROTATION_SYSTEM, &button_toggle_rotation_system_held);
-    update_input_state(state, BUTTON_MUTE, &button_mute_held);
-    update_input_state(state, BUTTON_MYSTERY, &button_mystery_held);
-    update_input_state(state, BUTTON_HARD_DROP, &button_hard_drop_held);
+    update_input_state(state, BUTTON_U, GAMEPAD_U, &button_u_held);
+    update_input_state(state, BUTTON_D, GAMEPAD_D, &button_d_held);
+    update_input_state(state, BUTTON_L, GAMEPAD_L, &button_l_held);
+    update_input_state(state, BUTTON_R, GAMEPAD_R, &button_r_held);
+    update_input_state(state, BUTTON_A, GAMEPAD_A, &button_a_held);
+    update_input_state(state, BUTTON_B, GAMEPAD_B, &button_b_held);
+    update_input_state(state, BUTTON_C, GAMEPAD_C, &button_c_held);
+    update_input_state(state, BUTTON_START, GAMEPAD_START, &button_start_held);
+    update_input_state(state, BUTTON_RESET, GAMEPAD_RESET, &button_reset_held);
+    update_input_state(state, BUTTON_QUIT, SDL_GAMEPAD_BUTTON_INVALID, &button_quit_held);
+    update_input_state(state, BUTTON_SCALE_DOWN, SDL_GAMEPAD_BUTTON_INVALID, &button_scale_down_held);
+    update_input_state(state, BUTTON_SCALE_UP, SDL_GAMEPAD_BUTTON_INVALID, &button_scale_up_held);
+    update_input_state(state, BUTTON_TOGGLE_ROTATION_SYSTEM, SDL_GAMEPAD_BUTTON_INVALID, &button_toggle_rotation_system_held);
+    update_input_state(state, BUTTON_MUTE, SDL_GAMEPAD_BUTTON_INVALID, &button_mute_held);
+    update_input_state(state, BUTTON_MYSTERY, SDL_GAMEPAD_BUTTON_INVALID, &button_mystery_held);
+    update_input_state(state, BUTTON_HARD_DROP, GAMEPAD_HARD_DROP, &button_hard_drop_held);
 }
 
 void play_sound(const sound_t *sound) {
@@ -897,7 +908,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
     // Create the window.
     SDL_SetAppMetadata("Tinytris", "1.0", "org.villadelfia.tinytris");
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD);
     SDL_CreateWindowAndRenderer("Tinytris", 12*16*render_scale, 26*16*render_scale, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
     SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
@@ -950,6 +961,11 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_LoadWAV_IO(t, true, &spec, &go_sound.wave_data, &go_sound.wave_data_len);
     go_sound.stream = SDL_CreateAudioStream(&spec, NULL);
     SDL_BindAudioStream(audio_device, go_sound.stream);
+
+    // Gamepad
+    if (SDL_HasGamepad()) {
+        gamepad = SDL_OpenGamepad(SDL_GetGamepads(NULL)[0]);
+    }
 
     last_time = SDL_GetTicksNS();
 
