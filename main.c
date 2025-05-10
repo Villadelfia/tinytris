@@ -84,7 +84,20 @@ void apply_scale() {
     SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
 }
 
+void check_gamepad() {
+    if (gamepad != NULL) {
+        if (!SDL_GamepadConnected(gamepad)) {
+            SDL_CloseGamepad(gamepad);
+            gamepad = NULL;
+        }
+    }
+    if (SDL_HasGamepad()) {
+        gamepad = SDL_OpenGamepad(SDL_GetGamepads(NULL)[0]);
+    }
+}
+
 void update_input_state(const bool *state, const int32_t scan_code, const SDL_GamepadButton button, int32_t *input_data) {
+    check_gamepad();
     bool pressed = false;
     if (gamepad != NULL) {
         if (SDL_GetGamepadButton(gamepad, button)) pressed = true;
@@ -961,11 +974,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_LoadWAV_IO(t, true, &spec, &go_sound.wave_data, &go_sound.wave_data_len);
     go_sound.stream = SDL_CreateAudioStream(&spec, NULL);
     SDL_BindAudioStream(audio_device, go_sound.stream);
-
-    // Gamepad
-    if (SDL_HasGamepad()) {
-        gamepad = SDL_OpenGamepad(SDL_GetGamepads(NULL)[0]);
-    }
 
     last_time = SDL_GetTicksNS();
 
