@@ -47,6 +47,7 @@ int lines_cleared = 0;
 int clears[4] = {-1, -1, -1, -1};
 bool muted = false;
 bool mystery = false;
+bool ti_ars = true;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -70,6 +71,7 @@ int32_t button_scale_down_held = 0;
 int32_t button_mute_held = 0;
 int32_t button_mystery_held = 0;
 int32_t button_hard_drop_held = 0;
+int32_t button_toggle_rotation_system_held = 0;
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -107,6 +109,7 @@ void update_input_states() {
     update_input_state(state, BUTTON_QUIT, &button_quit_held);
     update_input_state(state, BUTTON_SCALE_DOWN, &button_scale_down_held);
     update_input_state(state, BUTTON_SCALE_UP, &button_scale_up_held);
+    update_input_state(state, BUTTON_TOGGLE_ROTATION_SYSTEM, &button_toggle_rotation_system_held);
     update_input_state(state, BUTTON_MUTE, &button_mute_held);
     update_input_state(state, BUTTON_MYSTERY, &button_mystery_held);
     update_input_state(state, BUTTON_HARD_DROP, &button_hard_drop_held);
@@ -200,14 +203,18 @@ bool touching_stack() {
 
     live_block_t active = current_piece;
     active.y++;
-    if (piece_collides(active) == -1) return false;
-    active.y -= 2;
-    if (piece_collides(active) == -1) return false;
-    active.y++;
+    if (piece_collides(active) != -1) return true;
+    active = current_piece;
+    active.y--;
+    if (piece_collides(active) != -1) return true;
+    active = current_piece;
     active.x++;
-    if (piece_collides(active) == -1) return false;
-    active.x -= 2;
-    return piece_collides(active) != -1;
+    if (piece_collides(active) != -1) return true;
+    active = current_piece;
+    active.x--;
+    if (piece_collides(active) != -1) return true;
+
+    return false;
 }
 
 void try_rotate(const int direction) {
@@ -231,6 +238,7 @@ void try_rotate(const int direction) {
     }
 
     if (active.type == BLOCK_I) {
+        if (!ti_ars) return;
         if (touching_stack() && (active.rotation_state == 0 || active.rotation_state == 2)) {
             // I -> right
             active.x += 1;
@@ -292,6 +300,7 @@ void try_rotate(const int direction) {
         }
 
         // T -> up
+        if (!ti_ars) return;
         if (current_piece.type == BLOCK_T && piece_grounded()) {
             active.x += 1;
             active.y -= 1;
@@ -303,10 +312,6 @@ void try_rotate(const int direction) {
             }
         }
     }
-
-
-
-
 }
 
 void check_clears() {
@@ -678,7 +683,7 @@ void render_game() {
     // A bit of info.
     SDL_SetRenderScale(renderer, (float)render_scale/2.0f, (float)render_scale/2.0f);
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 1.0f);
-    SDL_RenderDebugTextFormat(renderer, 30.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 3) * 2 , "[LVL:%04d] [GRV:%06.3f] [DAS:%02d] [LCK:%02d]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock);
+    SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][R:%d]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock, ti_ars ? 3 : 2);
     SDL_SetRenderScale(renderer, (float)render_scale, (float)render_scale);
 
     SDL_RenderPresent(renderer);
@@ -697,6 +702,9 @@ bool state_machine_tick() {
 
     // Mute?
     if (IS_JUST_HELD(button_mute_held)) muted = !muted;
+
+    // ARS/Ti ARS?
+    if (IS_JUST_HELD(button_toggle_rotation_system_held)) ti_ars = !ti_ars;
 
     // Huh?
     if (IS_JUST_HELD(button_mystery_held)) mystery = !mystery;

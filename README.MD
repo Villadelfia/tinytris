@@ -3,7 +3,7 @@
 A minimal implementation of a TGM2-like tetris game, with some modern amenities.
 
 - 180° IRS is possible by holding A and C during ARE.
-- The rotation system includes the improved kicks from TGM3.
+- The rotation system can be switched between TGM2 and TGM3 mode.
 - A hard drop button as well as a sonic drop button are provided.
 - Infinite speed curve, with the first 999 levels matching TAP Master mode.
 - Automatic pause on focus loss and short delay before restarting.
@@ -22,9 +22,10 @@ Controls are hardcoded, but easy enough to adjust in the source file.
 - `K`: Rotate CW
 - `R`: Restart game
 - `ESC`: Quit game
+- `0`: Toggle between Classic ARS and Ti ARS, shown as [R:2] and [R:3] respectively
 - `-`: Scale down
 - `=`: Scale up
-- `P`: Mute/unmute.
+- `P`: Mute/unmute
 
 ## Features
 
