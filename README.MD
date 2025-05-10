@@ -3,6 +3,7 @@
 A minimal implementation of a TGM2-like tetris game, with some modern amenities.
 
 - 180° IRS is possible by holding A and C during ARE.
+- The rotation system includes the improved kicks from TGM3.
 - A hard drop button as well as a sonic drop button are provided.
 - Infinite speed curve, with the first 999 levels matching TAP Master mode.
 - Automatic pause on focus loss and short delay before restarting.

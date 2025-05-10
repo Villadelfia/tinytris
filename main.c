@@ -134,7 +134,7 @@ int piece_collides(const live_block_t piece) {
 
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
-            if (rotation[4*j + i] != ' ') {
+            if (rotation[4*j + i] != ' ' && piece.y + j + 1 >= 0) {
                 if (piece.y + j + 1 > 20 || piece.x + i < 0 || piece.x + i > 9 || field[piece.x + i][piece.y + j + 1].type != BLOCK_VOID) {
                     return 4*j+i;
                 }
@@ -192,6 +192,21 @@ bool piece_grounded() {
     return piece_collides(active) != -1;
 }
 
+bool touching_stack() {
+    if (current_piece.type == BLOCK_VOID) return false;
+
+    live_block_t active = current_piece;
+    active.y++;
+    if (piece_collides(active) == -1) return false;
+    active.y -= 2;
+    if (piece_collides(active) == -1) return false;
+    active.y++;
+    active.x++;
+    if (piece_collides(active) == -1) return false;
+    active.x -= 2;
+    return piece_collides(active) != -1;
+}
+
 void try_rotate(const int direction) {
     if (current_piece.type == BLOCK_VOID) return;
 
@@ -206,24 +221,89 @@ void try_rotate(const int direction) {
         return;
     }
 
-    if (active.type == BLOCK_I || active.type == BLOCK_O) return;
+    if (active.type == BLOCK_O) return;
 
     if (active.type == BLOCK_J || active.type == BLOCK_L || active.type == BLOCK_T) {
         if (collision == 1 || collision == 5 || collision == 9) return;
     }
 
-    active.x += 1;
-    if (piece_collides(active) == -1) {
-        current_piece.rotation_state = active.rotation_state;
-        current_piece.x += 1;
-        return;
+    if (active.type == BLOCK_I) {
+        if (touching_stack() && (active.rotation_state == 0 || active.rotation_state == 2)) {
+            // I -> right
+            active.x += 1;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.x += 1;
+                return;
+            }
+
+            // I -> 2right
+            active.x += 2;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.x += 2;
+                return;
+            }
+
+            // I -> left
+            active.x -= 3;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.x -= 1;
+            }
+        } else if (piece_grounded() && (active.rotation_state == 1 || active.rotation_state == 3)) {
+            // I -> up
+            active.y -= 1;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.y -= 1;
+                current_piece.lock_delay = 0;
+                current_piece.instant_lock = true;
+                return;
+            }
+
+            // I -> 2up
+            active.y -= 1;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.y -= 2;
+                current_piece.lock_delay = 0;
+                current_piece.instant_lock = true;
+            }
+        }
+    } else {
+        // right
+        active.x += 1;
+        if (piece_collides(active) == -1) {
+            current_piece.rotation_state = active.rotation_state;
+            current_piece.x += 1;
+            return;
+        }
+
+        // left
+        active.x -= 2;
+        if (piece_collides(active) == -1) {
+            current_piece.rotation_state = active.rotation_state;
+            current_piece.x -= 1;
+            return;
+        }
+
+        // T -> up
+        if (current_piece.type == BLOCK_T && piece_grounded()) {
+            active.x += 1;
+            active.y -= 1;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.y -= 1;
+                current_piece.lock_delay = 0;
+                current_piece.instant_lock = true;
+            }
+        }
     }
 
-    active.x -= 2;
-    if (piece_collides(active) == -1) {
-        current_piece.rotation_state = active.rotation_state;
-        current_piece.x -= 1;
-    }
+
+
+
 }
 
 void check_clears() {
@@ -339,6 +419,7 @@ void generate_next_piece() {
     current_piece.lock_status = LOCK_UNLOCKED;
     current_piece.rotation_state = 0;
     current_piece.lock_delay = current_timing->lock;
+    current_piece.instant_lock = false;
 
     // Apply IRS.
     if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 1;
@@ -692,18 +773,21 @@ bool state_machine_tick() {
 
         // Gravity.
         accumulated_g += current_timing->g;
+
         // Soft drop.
         if (current_timing->g < 256 && IS_HELD(button_d_held)) accumulated_g = 256;
+
         // Sonic drop.
         if (IS_JUST_HELD(button_u_held) || IS_JUST_HELD(button_hard_drop_held) || ((IS_HELD(button_u_held) || IS_HELD(button_hard_drop_held)) && game_state_ctr > 0)) accumulated_g += 20*256;
 
+        // Apply gravity.
         const int start_y = current_piece.y;
         if (accumulated_g >= 256) {
             while (accumulated_g >= 256) {
                 try_descend();
                 accumulated_g -= 256;
             }
-            if (start_y != current_piece.y) {
+            if (start_y != current_piece.y && !current_piece.instant_lock) {
                 current_piece.lock_param = 1.0f;
                 current_piece.lock_delay = current_timing->lock;
             }
@@ -713,6 +797,7 @@ bool state_machine_tick() {
         if (piece_grounded()) {
             if (!was_grounded || start_y != current_piece.y) play_sound(&pieceland_sound);
             current_piece.lock_delay--;
+            if (current_piece.lock_delay < 0) current_piece.lock_delay = 0;
             // Soft lock.
             if (IS_HELD(button_d_held) || IS_HELD(button_hard_drop_held)) current_piece.lock_delay = 0;
             current_piece.lock_param = (float)current_piece.lock_delay / (float)current_timing->lock;
