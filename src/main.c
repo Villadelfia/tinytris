@@ -747,9 +747,9 @@ void play_music() {
     // Pause on pause.
     if (game_state == STATE_PAUSED) {
         SDL_PauseAudioStreamDevice(music);
-    } else {
-        if (SDL_AudioStreamDevicePaused(music)) SDL_ResumeAudioStreamDevice(music);
+        return;
     }
+    if (SDL_AudioStreamDevicePaused(music)) SDL_ResumeAudioStreamDevice(music);
 
     // Fadeout.
     if (game_state == STATE_GAMEOVER || (level >= 280 && level < 300) || (level >= 480 && level < 500) || (level >= 680 && level < 700) || (level >= 980 && level < 1000)) {
@@ -812,6 +812,7 @@ void play_music() {
 
     // Queue up.
     if (SDL_GetAudioStreamAvailable(music) < data_len) {
+        SDL_Log("%d", data_len);
         SDL_PutAudioStreamData(music, data, (int)data_len);
     }
 }
