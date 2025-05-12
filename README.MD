@@ -28,6 +28,44 @@ Controls can be rebound in `config.ini`. Defaults will be used if this file is a
 - `=`: Scale up
 - `P`: Mute/unmute
 
+## Replacing graphics
+The main skin for the blocks can be replaced by providing a file named `block.bmp`.
+
+This image should contain a 4 wide by 2 high grid of 16x16 pixel images. These images represent the shapes:
+
+```text
+XILO
+ZTJS
+```
+
+X here being the skin used when you top out.
+
+## Replacing sounds
+All of the built-in sounds can be overridden by providing specific wav files:
+
+- `lineclear.wav`: Played when you clear a line.
+- `linecollapse.wav`: Played when the cleared lines collapse down.
+- `pieceland.wav`: Played when a piece hits the stack.
+- `piecelock.wav`: Played when a piece locks.
+- `irs.wav`: Played when a piece spawns with initial rotation applied.
+- `ready.wav`: Played at the start of the new game countdown.
+- `go.wav`: Played at the end of the new game countdown.
+
+In addition, several sounds are supported but are not included by default:
+
+- `i_mino.wav`: Played when a piece spawns and the next mino is an I piece.
+- `s_mino.wav`: Played when a piece spawns and the next mino is an S piece.
+- `z_mino.wav`: Played when a piece spawns and the next mino is a Z piece.
+- `j_mino.wav`: Played when a piece spawns and the next mino is a J piece.
+- `l_mino.wav`: Played when a piece spawns and the next mino is a L piece.
+- `o_mino.wav`: Played when a piece spawns and the next mino is an O piece.
+- `t_mino.wav`: Played when a piece spawns and the next mino is a T piece.
+- `section_lock.wav`: Played once if the level counter gets stuck at a section break.
+- `section_pass.wav`: Played when the level counter rolls over a new section.
+- `tetris.wav`: Played when clearing 4 lines at once.
+- `tetris_b2b.wav`: Played when clearing a tetris right after clearing another tetris.
+- `combo.wav`: Played when clearing 2 or more lines after clearing one or more line.
+
 ## Features
 
 You just play. If you need to pause, just click away and the game will pause. There are intentionally basically no features.

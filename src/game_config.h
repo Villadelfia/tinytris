@@ -37,7 +37,7 @@ int32_t GAMEPAD_TOGGLE_ROTATION_SYSTEM = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MUTE = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MYSTERY = SDL_GAMEPAD_BUTTON_INVALID;
 
-static int parse_config(void* user, char* section, const char* name, const char* value) {
+static int parse_config(void* user, const char* section, const char* name, const char* value) {
     if (SDL_strcasecmp(section, "keyboard") == 0) {
         const SDL_Scancode s = SDL_GetScancodeFromName(value);
         if (SDL_strcasecmp(name, "left") == 0) BUTTON_LEFT = s;

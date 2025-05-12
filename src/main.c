@@ -50,6 +50,9 @@ int clears[4] = {-1, -1, -1, -1};
 bool muted = false;
 bool mystery = false;
 bool ti_ars = true;
+bool section_locked = false;
+int previous_clears = 0;
+bool first_piece = true;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -58,6 +61,18 @@ sound_t piecelock_sound;
 sound_t irs_sound;
 sound_t ready_sound;
 sound_t go_sound;
+sound_t i_sound;
+sound_t s_sound;
+sound_t z_sound;
+sound_t j_sound;
+sound_t l_sound;
+sound_t o_sound;
+sound_t t_sound;
+sound_t section_lock_sound;
+sound_t section_pass_sound;
+sound_t tetris_sound;
+sound_t combo_sound;
+sound_t tetris_b2b_sound;
 
 int32_t button_u_held = 0;
 int32_t button_l_held = 0;
@@ -149,17 +164,44 @@ void update_input_states() {
 
 void play_sound(const sound_t *sound) {
     if (muted) return;
+    if (sound->stream == NULL) return;
     SDL_ClearAudioStream(sound->stream);
     SDL_PutAudioStreamData(sound->stream, sound->wave_data, (int)sound->wave_data_len);
 }
 
-void increment_level(const int lines) {
-    if (lines == 0) {
-        if (level % 100 == 99) return;
-        level++;
-    } else {
-        level += lines;
+void increment_level_piece_spawn() {
+    if (level % 100 == 99) return;
+    level++;
+    if ((current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
+        current_timing = current_timing+1;
     }
+}
+
+void increment_level_line_clear(const int lines) {
+    if (lines == 0) {
+        if (level % 100 == 99) {
+            if (!section_locked) {
+                play_sound(&section_lock_sound);
+                section_locked = true;
+            }
+        }
+        previous_clears = 0;
+        return;
+    }
+
+    section_locked = false;
+    if (lines == 4) {
+        if (previous_clears == 4) play_sound(&tetris_b2b_sound);
+        else play_sound(&tetris_sound);
+    }
+
+    if (previous_clears != 0 && lines >= 2) {
+        // Avoid playing tetris_b2b + combo. Tetris + combo is allowed.
+        if (lines != 4 || previous_clears != 4) play_sound(&combo_sound);
+    }
+    previous_clears = lines;
+    if ((level / 100) < ((level+lines) / 100)) play_sound(&section_pass_sound);
+    level += lines;
     if ((current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
         current_timing = current_timing+1;
     }
@@ -371,6 +413,7 @@ void check_clears() {
     }
 
     lines_cleared = ct;
+    increment_level_line_clear(ct);
 }
 
 void wipe_cleared() {
@@ -460,6 +503,15 @@ void generate_next_piece() {
     current_piece.rotation_state = 0;
     current_piece.lock_delay = current_timing->lock;
     current_piece.instant_lock = false;
+
+    // Play sound.
+    if (next_piece == BLOCK_I) play_sound(&i_sound);
+    if (next_piece == BLOCK_S) play_sound(&s_sound);
+    if (next_piece == BLOCK_Z) play_sound(&z_sound);
+    if (next_piece == BLOCK_J) play_sound(&j_sound);
+    if (next_piece == BLOCK_L) play_sound(&l_sound);
+    if (next_piece == BLOCK_O) play_sound(&o_sound);
+    if (next_piece == BLOCK_T) play_sound(&t_sound);
 
     // Apply IRS.
     if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 1;
@@ -776,6 +828,9 @@ bool state_machine_tick() {
         border_r = 0.1f;
         border_g = 0.1f;
         border_b = 0.9f;
+        first_piece = true;
+        section_locked = false;
+        previous_clears = 0;
         return true;
     }
 
@@ -811,7 +866,8 @@ bool state_machine_tick() {
     } else if (game_state == STATE_ARE) {
         game_state_ctr--;
         if (game_state_ctr == 0) {
-            increment_level(lines_cleared);
+            if (!first_piece) increment_level_piece_spawn();
+            first_piece = false;
             generate_next_piece();
             if (piece_collides(current_piece) != -1) {
                 write_piece(current_piece);
@@ -925,6 +981,33 @@ SDL_HitTestResult window_hit_test(SDL_Window *win, const SDL_Point *area, void *
     return SDL_HITTEST_DRAGGABLE;
 }
 
+void load_image(SDL_Texture *target, const char* file, void* fallback, const size_t fallback_size) {
+    target = IMG_LoadTexture(renderer, file);
+    if (target == NULL) {
+        SDL_IOStream *t = SDL_IOFromMem(fallback, fallback_size);
+        block_texture = IMG_LoadTexture_IO(renderer, t, true);
+    }
+    SDL_SetTextureScaleMode(target, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureBlendMode(target, SDL_BLENDMODE_BLEND);
+}
+
+void load_sound(sound_t *target, const char* file, void* fallback, const size_t fallback_size) {
+    SDL_AudioSpec spec;
+    bool success = SDL_LoadWAV(file, &spec, &target->wave_data, &target->wave_data_len);
+    if (!success && fallback != NULL) {
+        SDL_IOStream *t = SDL_IOFromMem(fallback, fallback_size);
+        success = SDL_LoadWAV_IO(t, true, &spec, &target->wave_data, &target->wave_data_len);
+    }
+    if (!success) {
+        target->stream = NULL;
+        target->wave_data = NULL;
+        target->wave_data_len = 0;
+    } else {
+        target->stream = SDL_CreateAudioStream(&spec, NULL);
+        SDL_BindAudioStream(audio_device, target->stream);
+    }
+}
+
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     load_config();
 
@@ -943,50 +1026,33 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetWindowHitTest(window, window_hit_test, NULL);
 
     // Load the image for a block.
-    SDL_IOStream *t = SDL_IOFromMem(block, sizeof block);
-    block_texture = IMG_LoadTexture_IO(renderer, t, true);
-    SDL_SetTextureScaleMode(block_texture, SDL_SCALEMODE_NEAREST);
-    SDL_SetTextureBlendMode(block_texture, SDL_BLENDMODE_BLEND);
+    load_image(block_texture, "block.bmp", block, sizeof block);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
 
     // Load the sounds.
-    SDL_AudioSpec spec;
-    t = SDL_IOFromMem(lineclear, sizeof lineclear);
-    SDL_LoadWAV_IO(t, true, &spec, &lineclear_sound.wave_data, &lineclear_sound.wave_data_len);
-    lineclear_sound.stream = SDL_CreateAudioStream(&spec, NULL);
-    SDL_BindAudioStream(audio_device, lineclear_sound.stream);
+    load_sound(&lineclear_sound, "lineclear.wav", lineclear, sizeof lineclear);
+    load_sound(&linecollapse_sound, "linecollapse.wav", linecollapse, sizeof linecollapse);
+    load_sound(&pieceland_sound, "pieceland.wav", pieceland, sizeof pieceland);
+    load_sound(&piecelock_sound, "piecelock.wav", piecelock, sizeof piecelock);
+    load_sound(&irs_sound, "irs.wav", irs, sizeof irs);
+    load_sound(&ready_sound, "ready.wav", ready, sizeof ready);
+    load_sound(&go_sound, "go.wav", go, sizeof go);
 
-    t = SDL_IOFromMem(linecollapse, sizeof linecollapse);
-    SDL_LoadWAV_IO(t, true, &spec, &linecollapse_sound.wave_data, &linecollapse_sound.wave_data_len);
-    linecollapse_sound.stream = SDL_CreateAudioStream(&spec, NULL);
-    SDL_BindAudioStream(audio_device, linecollapse_sound.stream);
-
-    t = SDL_IOFromMem(pieceland, sizeof pieceland);
-    SDL_LoadWAV_IO(t, true, &spec, &pieceland_sound.wave_data, &pieceland_sound.wave_data_len);
-    pieceland_sound.stream = SDL_CreateAudioStream(&spec, NULL);
-    SDL_BindAudioStream(audio_device, pieceland_sound.stream);
-
-    t = SDL_IOFromMem(piecelock, sizeof piecelock);
-    SDL_LoadWAV_IO(t, true, &spec, &piecelock_sound.wave_data, &piecelock_sound.wave_data_len);
-    piecelock_sound.stream = SDL_CreateAudioStream(&spec, NULL);
-    SDL_BindAudioStream(audio_device, piecelock_sound.stream);
-
-    t = SDL_IOFromMem(irs, sizeof irs);
-    SDL_LoadWAV_IO(t, true, &spec, &irs_sound.wave_data, &irs_sound.wave_data_len);
-    irs_sound.stream = SDL_CreateAudioStream(&spec, NULL);
-    SDL_BindAudioStream(audio_device, irs_sound.stream);
-
-    t = SDL_IOFromMem(ready, sizeof ready);
-    SDL_LoadWAV_IO(t, true, &spec, &ready_sound.wave_data, &ready_sound.wave_data_len);
-    ready_sound.stream = SDL_CreateAudioStream(&spec, NULL);
-    SDL_BindAudioStream(audio_device, ready_sound.stream);
-
-    t = SDL_IOFromMem(go, sizeof go);
-    SDL_LoadWAV_IO(t, true, &spec, &go_sound.wave_data, &go_sound.wave_data_len);
-    go_sound.stream = SDL_CreateAudioStream(&spec, NULL);
-    SDL_BindAudioStream(audio_device, go_sound.stream);
+    // Optional sounds
+    load_sound(&i_sound, "i_mino.wav", NULL, 0);
+    load_sound(&s_sound, "s_mino.wav", NULL, 0);
+    load_sound(&z_sound, "z_mino.wav", NULL, 0);
+    load_sound(&j_sound, "j_mino.wav", NULL, 0);
+    load_sound(&l_sound, "l_mino.wav", NULL, 0);
+    load_sound(&o_sound, "o_mino.wav", NULL, 0);
+    load_sound(&t_sound, "t_mino.wav", NULL, 0);
+    load_sound(&section_lock_sound, "section_lock.wav", NULL, 0);
+    load_sound(&section_pass_sound, "section_pass.wav", NULL, 0);
+    load_sound(&combo_sound, "combo.wav", NULL, 0);
+    load_sound(&tetris_sound, "tetris.wav", NULL, 0);
+    load_sound(&tetris_b2b_sound, "tetris_b2b.wav", NULL, 0);
 
     last_time = SDL_GetTicksNS();
 
