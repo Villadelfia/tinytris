@@ -1,12 +1,15 @@
 cmake_minimum_required(VERSION 3.21)
 project(tinytris C)
 set(CMAKE_C_STANDARD 23)
-add_executable(tinytris main.c)
+add_executable(tinytris src/main.c)
 if(WIN32)
     set_property(TARGET tinytris PROPERTY WIN32_EXECUTABLE TRUE)
 endif()
 
 find_package(SDL3 CONFIG REQUIRED)
 find_package(SDL3_image CONFIG REQUIRED)
+find_package(unofficial-inih CONFIG REQUIRED)
+
 target_link_libraries(tinytris PRIVATE SDL3::SDL3)
 target_link_libraries(tinytris PRIVATE $<IF:$<TARGET_EXISTS:SDL3_image::SDL3_image-shared>,SDL3_image::SDL3_image-shared,SDL3_image::SDL3_image-static>)
+target_link_libraries(tinytris PRIVATE unofficial::inih::libinih)

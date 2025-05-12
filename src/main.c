@@ -4,6 +4,7 @@
 #include <SDL3_image/SDL_image.h>
 #include <SDL3/SDL_timer.h>
 #include <stdint.h>
+#include <ini.h>
 #include "rng.h"
 #include "game_data.h"
 #include "game_config.h"
@@ -101,10 +102,10 @@ void update_input_state(const bool *state, const int32_t scan_code, const SDL_Ga
     bool pressed = false;
     if (gamepad != NULL) {
         if (SDL_GetGamepadButton(gamepad, button)) pressed = true;
-        if (button == GAMEPAD_U && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY) < -10000) pressed = true;
-        if (button == GAMEPAD_D && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY) > 10000) pressed = true;
-        if (button == GAMEPAD_L && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX) < -10000) pressed = true;
-        if (button == GAMEPAD_R && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX) > 10000) pressed = true;
+        if (button == GAMEPAD_SONIC_DROP && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY) < -10000) pressed = true;
+        if (button == GAMEPAD_SOFT_DROP && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY) > 10000) pressed = true;
+        if (button == GAMEPAD_LEFT && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX) < -10000) pressed = true;
+        if (button == GAMEPAD_RIGHT && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX) > 10000) pressed = true;
     }
     if (state[scan_code]) pressed = true;
 
@@ -123,22 +124,27 @@ void update_input_state(const bool *state, const int32_t scan_code, const SDL_Ga
 
 void update_input_states() {
     const bool* state = SDL_GetKeyboardState(NULL);
-    update_input_state(state, BUTTON_U, GAMEPAD_U, &button_u_held);
-    update_input_state(state, BUTTON_D, GAMEPAD_D, &button_d_held);
-    update_input_state(state, BUTTON_L, GAMEPAD_L, &button_l_held);
-    update_input_state(state, BUTTON_R, GAMEPAD_R, &button_r_held);
-    update_input_state(state, BUTTON_A, GAMEPAD_A, &button_a_held);
-    update_input_state(state, BUTTON_B, GAMEPAD_B, &button_b_held);
-    update_input_state(state, BUTTON_C, GAMEPAD_C, &button_c_held);
-    update_input_state(state, BUTTON_START, GAMEPAD_START, &button_start_held);
-    update_input_state(state, BUTTON_RESET, GAMEPAD_RESET, &button_reset_held);
-    update_input_state(state, BUTTON_QUIT, SDL_GAMEPAD_BUTTON_INVALID, &button_quit_held);
-    update_input_state(state, BUTTON_SCALE_DOWN, SDL_GAMEPAD_BUTTON_INVALID, &button_scale_down_held);
-    update_input_state(state, BUTTON_SCALE_UP, SDL_GAMEPAD_BUTTON_INVALID, &button_scale_up_held);
-    update_input_state(state, BUTTON_TOGGLE_ROTATION_SYSTEM, SDL_GAMEPAD_BUTTON_INVALID, &button_toggle_rotation_system_held);
-    update_input_state(state, BUTTON_MUTE, SDL_GAMEPAD_BUTTON_INVALID, &button_mute_held);
-    update_input_state(state, BUTTON_MYSTERY, SDL_GAMEPAD_BUTTON_INVALID, &button_mystery_held);
+    update_input_state(state, BUTTON_LEFT, GAMEPAD_LEFT, &button_l_held);
+    update_input_state(state, BUTTON_RIGHT, GAMEPAD_RIGHT, &button_r_held);
+
+    update_input_state(state, BUTTON_SONIC_DROP, GAMEPAD_SONIC_DROP, &button_u_held);
+    update_input_state(state, BUTTON_SOFT_DROP, GAMEPAD_SOFT_DROP, &button_d_held);
     update_input_state(state, BUTTON_HARD_DROP, GAMEPAD_HARD_DROP, &button_hard_drop_held);
+
+    update_input_state(state, BUTTON_CCW_1, GAMEPAD_CCW_1, &button_a_held);
+    update_input_state(state, BUTTON_CCW_2, GAMEPAD_CCW_2, &button_c_held);
+    update_input_state(state, BUTTON_CW, GAMEPAD_CW, &button_b_held);
+
+    update_input_state(state, BUTTON_RESET, GAMEPAD_RESET, &button_reset_held);
+    update_input_state(state, BUTTON_START, GAMEPAD_START, &button_start_held);
+    update_input_state(state, BUTTON_QUIT, GAMEPAD_QUIT, &button_quit_held);
+
+    update_input_state(state, BUTTON_SCALE_UP, GAMEPAD_SCALE_UP, &button_scale_up_held);
+    update_input_state(state, BUTTON_SCALE_DOWN, GAMEPAD_SCALE_DOWN, &button_scale_down_held);
+    update_input_state(state, BUTTON_TOGGLE_ROTATION_SYSTEM, GAMEPAD_TOGGLE_ROTATION_SYSTEM, &button_toggle_rotation_system_held);
+    update_input_state(state, BUTTON_MUTE, GAMEPAD_MUTE, &button_mute_held);
+
+    update_input_state(state, BUTTON_MYSTERY, GAMEPAD_MYSTERY, &button_mystery_held);
 }
 
 void play_sound(const sound_t *sound) {
@@ -704,19 +710,32 @@ void render_game() {
     SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock, ti_ars ? "Ti " : "TAP");
 
     if (game_state == STATE_WAIT) {
-        SDL_RenderDebugTextFormat(renderer, 112.0f, (FIELD_Y_OFFSET + (8.0f * 16.0f)) * 2 , "Press ENTER to begin");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (9.0f * 16.0f)) * 2 , "- A/D: Left/right");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (9.5f * 16.0f)) * 2 , "- W: Sonic drop");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (10.0f * 16.0f)) * 2 , "- S: Soft drop");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (10.5f * 16.0f)) * 2 , "- U: Hard drop");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.0f * 16.0f)) * 2 , "- J/L: Rotate CCW");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.5f * 16.0f)) * 2 , "- K: Rotate CW");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.0f * 16.0f)) * 2 , "- R: Restart game");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.5f * 16.0f)) * 2 , "- ESC: Quit game");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.0f * 16.0f)) * 2 , "- 0: Toggle rotation system");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.5f * 16.0f)) * 2 , "- -: Scale down");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.0f * 16.0f)) * 2 , "- =: Scale up");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (24.5f * 16.0f)) * 2 , "- P: Mute/unmute");
+        SDL_RenderDebugTextFormat(renderer, 112.0f, (FIELD_Y_OFFSET + (4.0f * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
+
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (5.0f * 16.0f)) * 2 , "Keyboard:");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (5.5f * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetScancodeName(BUTTON_LEFT), SDL_GetScancodeName(BUTTON_RIGHT));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (6.0f * 16.0f)) * 2 , "- %s: Sonic drop", SDL_GetScancodeName(BUTTON_SONIC_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (6.5f * 16.0f)) * 2 , "- %s: Soft drop", SDL_GetScancodeName(BUTTON_SOFT_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (7.0f * 16.0f)) * 2 , "- %s: Hard drop", SDL_GetScancodeName(BUTTON_HARD_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (7.5f * 16.0f)) * 2 , "- %s/%s: Rotate CCW", SDL_GetScancodeName(BUTTON_CCW_1), SDL_GetScancodeName(BUTTON_CCW_2));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (8.0f * 16.0f)) * 2 , "- %s: Rotate CW", SDL_GetScancodeName(BUTTON_CW));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (8.5f * 16.0f)) * 2 , "- %s: Start game", SDL_GetScancodeName(BUTTON_START));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (9.0f * 16.0f)) * 2 , "- %s: Reset game", SDL_GetScancodeName(BUTTON_RESET));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (9.5f * 16.0f)) * 2 , "- %s: Quit game", SDL_GetScancodeName(BUTTON_QUIT));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (10.0f * 16.0f)) * 2 , "- %s: Toggle rotation system", SDL_GetScancodeName(BUTTON_TOGGLE_ROTATION_SYSTEM));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (10.5f * 16.0f)) * 2 , "- %s: Scale down", SDL_GetScancodeName(BUTTON_SCALE_DOWN));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.0f * 16.0f)) * 2 , "- %s: Scale up", SDL_GetScancodeName(BUTTON_SCALE_UP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.5f * 16.0f)) * 2 , "- %s: Mute/unmute", SDL_GetScancodeName(BUTTON_MUTE));
+
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.5f * 16.0f)) * 2 , "Gamepad:");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.0f * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetGamepadStringForButton(GAMEPAD_LEFT), SDL_GetGamepadStringForButton(GAMEPAD_RIGHT));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.5f * 16.0f)) * 2 , "- %s: Sonic drop", SDL_GetGamepadStringForButton(GAMEPAD_SONIC_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.0f * 16.0f)) * 2 , "- %s: Soft drop", SDL_GetGamepadStringForButton(GAMEPAD_SOFT_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.5f * 16.0f)) * 2 , "- %s: Hard drop", SDL_GetGamepadStringForButton(GAMEPAD_HARD_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.0f * 16.0f)) * 2 , "- %s/%s: Rotate CCW", SDL_GetGamepadStringForButton(GAMEPAD_CCW_1), SDL_GetGamepadStringForButton(GAMEPAD_CCW_2));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.5f * 16.0f)) * 2 , "- %s: Rotate CW", SDL_GetGamepadStringForButton(GAMEPAD_CW));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.0f * 16.0f)) * 2 , "- %s: Start game", SDL_GetGamepadStringForButton(GAMEPAD_START));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.5f * 16.0f)) * 2 , "- %s: Reset game", SDL_GetGamepadStringForButton(GAMEPAD_RESET));
     }
 
     SDL_SetRenderScale(renderer, (float)render_scale, (float)render_scale);
@@ -907,6 +926,8 @@ SDL_HitTestResult window_hit_test(SDL_Window *win, const SDL_Point *area, void *
 }
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
+    load_config();
+
     seed_rng();
     generate_first_piece();
     current_timing = &game_timing[0];

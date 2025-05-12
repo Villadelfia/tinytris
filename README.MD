@@ -12,7 +12,7 @@ Intended to be played while doing other things.
 
 ## Controls
 
-Controls are hardcoded, but easy enough to adjust in the source file.
+Controls can be rebound in `config.ini`. Defaults will be used if this file is absent.
 
 - `A/D`: Left/right
 - `W`: Sonic drop

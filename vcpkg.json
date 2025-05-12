@@ -8,5 +8,8 @@
   }, {
     "name" : "sdl3-image",
     "version>=" : "3.2.4"
+  }, {
+    "name" : "inih",
+    "version>=" : "59"
   } ]
 }

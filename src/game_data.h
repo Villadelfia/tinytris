@@ -1,13 +1,13 @@
 #pragma once
 
-#include "block.h"
-#include "lineclear.h"
-#include "linecollapse.h"
-#include "pieceland.h"
-#include "piecelock.h"
-#include "irs.h"
-#include "ready.h"
-#include "go.h"
+#include "assets/block.h"
+#include "assets/lineclear.h"
+#include "assets/linecollapse.h"
+#include "assets/pieceland.h"
+#include "assets/piecelock.h"
+#include "assets/irs.h"
+#include "assets/ready.h"
+#include "assets/go.h"
 #include "game_types.h"
 
 const float FIELD_X_OFFSET = 16.0f;
