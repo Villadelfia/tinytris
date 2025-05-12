@@ -66,6 +66,18 @@ In addition, several sounds are supported but are not included by default:
 - `tetris_b2b.wav`: Played when clearing a tetris right after clearing another tetris.
 - `combo.wav`: Played when clearing 2 or more lines after clearing one or more line.
 
+## Music
+Music is supported. The game will look for the following songs:
+
+- `section_0_h.wav`: Intro of the song played from 0-280.
+- `section_0_b.wav`: Looping part of the song played from 0-280.
+- `section_1_h.wav`: Intro of the song played from 300-480.
+- `section_1_b.wav`: Looping part of the song played from 300-480.
+- `section_2_h.wav`: Intro of the song played from 500+.
+- `section_2_b.wav`: Looping part of the song played from 500+.
+
+A later section is missing, or a song has no intro, the game will try to Do The Right Thing.
+
 ## Features
 
 You just play. If you need to pause, just click away and the game will pause. There are intentionally basically no features.

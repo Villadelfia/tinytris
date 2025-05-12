@@ -16,6 +16,7 @@ static SDL_Renderer *renderer = NULL;
 static SDL_Gamepad *gamepad = NULL;
 static SDL_Texture *block_texture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
+static SDL_AudioStream *music = NULL;
 #define FRAME_TIME (SDL_NS_PER_SECOND / SDL_SINT64_C(60))
 static Uint64 last_time = 0;
 static Sint64 accumulated_time = 0;
@@ -53,6 +54,8 @@ bool ti_ars = true;
 bool section_locked = false;
 int previous_clears = 0;
 bool first_piece = true;
+bool intro = true;
+float volume = 1.0f;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -73,6 +76,19 @@ sound_t section_pass_sound;
 sound_t tetris_sound;
 sound_t combo_sound;
 sound_t tetris_b2b_sound;
+
+uint8_t *section_0_h;
+uint32_t section_0_h_len;
+uint8_t *section_0_b;
+uint32_t section_0_b_len;
+uint8_t *section_1_h;
+uint32_t section_1_h_len;
+uint8_t *section_1_b;
+uint32_t section_1_b_len;
+uint8_t *section_2_h;
+uint32_t section_2_h_len;
+uint8_t *section_2_b;
+uint32_t section_2_b_len;
 
 int32_t button_u_held = 0;
 int32_t button_l_held = 0;
@@ -342,8 +358,7 @@ void try_rotate(const int direction) {
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
                 current_piece.y -= 1;
-                current_piece.lock_delay = 0;
-                current_piece.instant_lock = true;
+                current_piece.floor_kicked = true;
                 return;
             }
 
@@ -352,8 +367,7 @@ void try_rotate(const int direction) {
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
                 current_piece.y -= 2;
-                current_piece.lock_delay = 0;
-                current_piece.instant_lock = true;
+                current_piece.floor_kicked = true;
             }
         }
     } else {
@@ -381,8 +395,7 @@ void try_rotate(const int direction) {
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
                 current_piece.y -= 1;
-                current_piece.lock_delay = 0;
-                current_piece.instant_lock = true;
+                current_piece.floor_kicked = true;
             }
         }
     }
@@ -502,7 +515,7 @@ void generate_next_piece() {
     current_piece.lock_status = LOCK_UNLOCKED;
     current_piece.rotation_state = 0;
     current_piece.lock_delay = current_timing->lock;
-    current_piece.instant_lock = false;
+    current_piece.floor_kicked = false;
 
     // Play sound.
     if (next_piece == BLOCK_I) play_sound(&i_sound);
@@ -712,6 +725,77 @@ void render_field() {
     }
 }
 
+void play_music() {
+    if (muted) return;
+    if (music == NULL) return;
+
+    // Stop the music when starting a new game.
+    if (game_state == STATE_BEGIN || game_state == STATE_WAIT) {
+        SDL_ClearAudioStream(music);
+        intro = true;
+        return;
+    }
+
+    // Pause on pause.
+    if (game_state == STATE_PAUSED) {
+        SDL_PauseAudioStreamDevice(music);
+    } else {
+        if (SDL_AudioStreamDevicePaused(music)) SDL_ResumeAudioStreamDevice(music);
+    }
+
+    // Fadeout.
+    if (game_state == STATE_GAMEOVER || (level >= 280 && level < 300) || (level >= 480 && level < 500)) {
+        volume -= 0.025;
+        if (volume < 0.0f) {
+            volume = 0.0f;
+            SDL_ClearAudioStream(music);
+        }
+
+        SDL_SetAudioStreamGain(music, volume * 0.6f);
+        intro = true;
+        return;
+    }
+
+    volume = 1.0f;
+    SDL_SetAudioStreamGain(music, volume * 0.6f);
+
+    // Otherwise, check what data to load.
+    uint8_t *data = NULL;
+    uint32_t data_len = 0;
+    if (intro) {
+        if (level >= 500) {
+            data = section_2_h;
+            data_len = section_2_h_len;
+        } else if (level >= 300) {
+            data = section_1_h;
+            data_len = section_1_h_len;
+        } else {
+            data = section_0_h;
+            data_len = section_0_h_len;
+        }
+        intro = false;
+    } else {
+        if (level >= 500) {
+            data = section_2_b;
+            data_len = section_2_b_len;
+        } else if (level >= 300) {
+            data = section_1_b;
+            data_len = section_1_b_len;
+        } else {
+            data = section_0_b;
+            data_len = section_0_b_len;
+        }
+    }
+
+    // If there's no song for this slot, ignore.
+    if (data == NULL) return;
+
+    // Queue up.
+    if (SDL_GetAudioStreamAvailable(music) < data_len) {
+        SDL_PutAudioStreamData(music, data, (int)data_len);
+    }
+}
+
 void render_game() {
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
@@ -884,8 +968,11 @@ bool state_machine_tick() {
         const bool was_grounded = piece_grounded();
 
         // Rotate.
+        const int prev_state = current_piece.rotation_state;
+        const bool prev_kicked = current_piece.floor_kicked;
         if ((IS_JUST_HELD(button_a_held) || IS_JUST_HELD(button_c_held)) && !IS_JUST_HELD(button_b_held)) try_rotate(1);
         if ((!IS_JUST_HELD(button_a_held) && !IS_JUST_HELD(button_c_held)) && IS_JUST_HELD(button_b_held)) try_rotate(-1);
+        if (prev_state != current_piece.rotation_state && prev_kicked) current_piece.lock_delay = 0;
 
         // Move.
         if (IS_HELD(button_l_held) && IS_HELD(button_r_held)) {
@@ -913,7 +1000,7 @@ bool state_machine_tick() {
                 try_descend();
                 accumulated_g -= 256;
             }
-            if (start_y != current_piece.y && !current_piece.instant_lock) {
+            if (start_y != current_piece.y && !(current_piece.floor_kicked && current_piece.lock_delay == 0)) {
                 current_piece.lock_param = 1.0f;
                 current_piece.lock_delay = current_timing->lock;
             }
@@ -981,14 +1068,15 @@ SDL_HitTestResult window_hit_test(SDL_Window *win, const SDL_Point *area, void *
     return SDL_HITTEST_DRAGGABLE;
 }
 
-void load_image(SDL_Texture *target, const char* file, void* fallback, const size_t fallback_size) {
-    target = IMG_LoadTexture(renderer, file);
+SDL_Texture *load_image(const char* file, void* fallback, const size_t fallback_size) {
+    SDL_Texture *target = IMG_LoadTexture(renderer, file);
     if (target == NULL) {
         SDL_IOStream *t = SDL_IOFromMem(fallback, fallback_size);
-        block_texture = IMG_LoadTexture_IO(renderer, t, true);
+        target = IMG_LoadTexture_IO(renderer, t, true);
     }
     SDL_SetTextureScaleMode(target, SDL_SCALEMODE_NEAREST);
     SDL_SetTextureBlendMode(target, SDL_BLENDMODE_BLEND);
+    return target;
 }
 
 void load_sound(sound_t *target, const char* file, void* fallback, const size_t fallback_size) {
@@ -1005,6 +1093,20 @@ void load_sound(sound_t *target, const char* file, void* fallback, const size_t 
     } else {
         target->stream = SDL_CreateAudioStream(&spec, NULL);
         SDL_BindAudioStream(audio_device, target->stream);
+    }
+}
+
+void load_music(const char *file, uint8_t **target, uint32_t *len) {
+    SDL_AudioSpec spec;
+    if (!SDL_LoadWAV(file, &spec, target, len)) {
+        *target = NULL;
+        *len = 0;
+        return;
+    }
+
+    if (music == NULL) {
+        music = SDL_CreateAudioStream(&spec, NULL);
+        SDL_BindAudioStream(audio_device, music);
     }
 }
 
@@ -1026,7 +1128,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetWindowHitTest(window, window_hit_test, NULL);
 
     // Load the image for a block.
-    load_image(block_texture, "block.bmp", block, sizeof block);
+    block_texture = load_image("block.bmp", block, sizeof block);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
@@ -1053,6 +1155,55 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     load_sound(&combo_sound, "combo.wav", NULL, 0);
     load_sound(&tetris_sound, "tetris.wav", NULL, 0);
     load_sound(&tetris_b2b_sound, "tetris_b2b.wav", NULL, 0);
+
+    load_music("section_0_h.wav", &section_0_h, &section_0_h_len);
+    load_music("section_0_b.wav", &section_0_b, &section_0_b_len);
+    load_music("section_1_h.wav", &section_1_h, &section_1_h_len);
+    load_music("section_1_b.wav", &section_1_b, &section_1_b_len);
+    load_music("section_2_h.wav", &section_2_h, &section_2_h_len);
+    load_music("section_2_b.wav", &section_2_b, &section_2_b_len);
+
+    // If a song has no head, or no body, copy the head to the body or vice versa.
+    if (section_0_h == NULL) {
+        section_0_h = section_0_b;
+        section_0_h_len = section_0_b_len;
+    }
+    if (section_0_b == NULL) {
+        section_0_b = section_0_h;
+        section_0_b_len = section_0_h_len;
+    }
+    if (section_1_h == NULL) {
+        section_1_h = section_1_b;
+        section_1_h_len = section_1_b_len;
+    }
+    if (section_1_b == NULL) {
+        section_1_b = section_1_h;
+        section_1_b_len = section_1_h_len;
+    }
+    if (section_2_h == NULL) {
+        section_2_h = section_2_b;
+        section_2_h_len = section_2_b_len;
+    }
+    if (section_2_b == NULL) {
+        section_2_b = section_2_h;
+        section_2_b_len = section_2_h_len;
+    }
+
+    // If the section 1 song is missing, copy the section 0 song.
+    if (section_1_h == NULL) {
+        section_1_h = section_0_h;
+        section_1_h_len = section_0_h_len;
+        section_1_b = section_0_b;
+        section_1_b_len = section_0_b_len;
+    }
+
+    // If the section 2 song is missing, copy the section 1 song.
+    if (section_2_h == NULL) {
+        section_2_h = section_1_h;
+        section_2_h_len = section_1_h_len;
+        section_2_b = section_1_b;
+        section_2_b_len = section_1_b_len;
+    }
 
     last_time = SDL_GetTicksNS();
 
@@ -1089,6 +1240,9 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
     // Render the game.
     render_game();
+
+    // Pump the music engine. Choo choo.
+    play_music();
 
     // Delay until next frame.
     if (accumulated_time > FRAME_TIME + SDL_NS_PER_MS * SDL_SINT64_C(100)) {

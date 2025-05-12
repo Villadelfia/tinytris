@@ -36,7 +36,7 @@ typedef struct {
     lock_status_t lock_status;
     float lock_param;
     int lock_delay;
-    bool instant_lock;
+    bool floor_kicked;
 } live_block_t;
 
 typedef char* rotation_state_t;
