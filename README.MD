@@ -73,8 +73,12 @@ Music is supported. The game will look for the following songs:
 - `section_0_b.wav`: Looping part of the song played from 0-280.
 - `section_1_h.wav`: Intro of the song played from 300-480.
 - `section_1_b.wav`: Looping part of the song played from 300-480.
-- `section_2_h.wav`: Intro of the song played from 500+.
-- `section_2_b.wav`: Looping part of the song played from 500+.
+- `section_2_h.wav`: Intro of the song played from 500-680.
+- `section_2_b.wav`: Looping part of the song played from 500-680.
+- `section_3_h.wav`: Intro of the song played from 700-980.
+- `section_3_b.wav`: Looping part of the song played from 700-980.
+- `section_4_h.wav`: Intro of the song played from 1000+.
+- `section_4_b.wav`: Looping part of the song played from 1000+.
 
 A later section is missing, or a song has no intro, the game will try to Do The Right Thing.
 

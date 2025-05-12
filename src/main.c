@@ -89,6 +89,14 @@ uint8_t *section_2_h;
 uint32_t section_2_h_len;
 uint8_t *section_2_b;
 uint32_t section_2_b_len;
+uint8_t *section_3_h;
+uint32_t section_3_h_len;
+uint8_t *section_3_b;
+uint32_t section_3_b_len;
+uint8_t *section_4_h;
+uint32_t section_4_h_len;
+uint8_t *section_4_b;
+uint32_t section_4_b_len;
 
 int32_t button_u_held = 0;
 int32_t button_l_held = 0;
@@ -744,7 +752,7 @@ void play_music() {
     }
 
     // Fadeout.
-    if (game_state == STATE_GAMEOVER || (level >= 280 && level < 300) || (level >= 480 && level < 500)) {
+    if (game_state == STATE_GAMEOVER || (level >= 280 && level < 300) || (level >= 480 && level < 500) || (level >= 680 && level < 700) || (level >= 980 && level < 1000)) {
         volume -= 0.025;
         if (volume < 0.0f) {
             volume = 0.0f;
@@ -763,7 +771,13 @@ void play_music() {
     uint8_t *data = NULL;
     uint32_t data_len = 0;
     if (intro) {
-        if (level >= 500) {
+        if (level >= 1000) {
+            data = section_4_h;
+            data_len = section_4_h_len;
+        } else if (level >= 700) {
+            data = section_3_h;
+            data_len = section_3_h_len;
+        } else if (level >= 500) {
             data = section_2_h;
             data_len = section_2_h_len;
         } else if (level >= 300) {
@@ -775,7 +789,13 @@ void play_music() {
         }
         intro = false;
     } else {
-        if (level >= 500) {
+        if (level >= 1000) {
+            data = section_4_b;
+            data_len = section_4_b_len;
+        } else if (level >= 700) {
+            data = section_3_b;
+            data_len = section_3_b_len;
+        } else if (level >= 500) {
             data = section_2_b;
             data_len = section_2_b_len;
         } else if (level >= 300) {
@@ -1162,6 +1182,10 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     load_music("section_1_b.wav", &section_1_b, &section_1_b_len);
     load_music("section_2_h.wav", &section_2_h, &section_2_h_len);
     load_music("section_2_b.wav", &section_2_b, &section_2_b_len);
+    load_music("section_3_h.wav", &section_3_h, &section_3_h_len);
+    load_music("section_3_b.wav", &section_3_b, &section_3_b_len);
+    load_music("section_4_h.wav", &section_4_h, &section_4_h_len);
+    load_music("section_4_b.wav", &section_4_b, &section_4_b_len);
 
     // If a song has no head, or no body, copy the head to the body or vice versa.
     if (section_0_h == NULL) {
@@ -1188,6 +1212,22 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
         section_2_b = section_2_h;
         section_2_b_len = section_2_h_len;
     }
+    if (section_3_h == NULL) {
+        section_3_h = section_3_b;
+        section_3_h_len = section_3_b_len;
+    }
+    if (section_3_b == NULL) {
+        section_3_b = section_3_h;
+        section_3_b_len = section_3_h_len;
+    }
+    if (section_4_h == NULL) {
+        section_4_h = section_4_b;
+        section_4_h_len = section_4_b_len;
+    }
+    if (section_4_b == NULL) {
+        section_4_b = section_4_h;
+        section_4_b_len = section_4_h_len;
+    }
 
     // If the section 1 song is missing, copy the section 0 song.
     if (section_1_h == NULL) {
@@ -1203,6 +1243,20 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
         section_2_h_len = section_1_h_len;
         section_2_b = section_1_b;
         section_2_b_len = section_1_b_len;
+    }
+
+    // Etc...
+    if (section_3_h == NULL) {
+        section_3_h = section_2_h;
+        section_3_h_len = section_2_h_len;
+        section_3_b = section_2_b;
+        section_3_b_len = section_2_b_len;
+    }
+    if (section_4_h == NULL) {
+        section_4_h = section_3_h;
+        section_4_h_len = section_3_h_len;
+        section_4_b = section_3_b;
+        section_4_b_len = section_3_b_len;
     }
 
     last_time = SDL_GetTicksNS();
