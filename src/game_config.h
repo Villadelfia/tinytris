@@ -81,6 +81,6 @@ static int parse_config(void* user, const char* section, const char* name, const
     return 1;
 }
 
-inline void load_config() {
+static inline void load_config() {
     ini_parse("config.ini", parse_config, NULL);
 }
