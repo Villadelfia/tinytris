@@ -817,7 +817,6 @@ void play_music() {
 
     // Queue up.
     if (SDL_GetAudioStreamAvailable(music) < data_len) {
-        SDL_Log("%d", data_len);
         SDL_PutAudioStreamData(music, data, (int)data_len);
     }
 }
