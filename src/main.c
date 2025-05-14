@@ -56,6 +56,7 @@ int previous_clears = 0;
 bool first_piece = true;
 bool intro = true;
 float volume = 1.0f;
+bool transparency = true;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -114,6 +115,7 @@ int32_t button_mute_held = 0;
 int32_t button_mystery_held = 0;
 int32_t button_hard_drop_held = 0;
 int32_t button_toggle_rotation_system_held = 0;
+int32_t button_toggle_transparency_held = 0;
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -181,6 +183,7 @@ void update_input_states() {
     update_input_state(state, BUTTON_SCALE_UP, GAMEPAD_SCALE_UP, &button_scale_up_held);
     update_input_state(state, BUTTON_SCALE_DOWN, GAMEPAD_SCALE_DOWN, &button_scale_down_held);
     update_input_state(state, BUTTON_TOGGLE_ROTATION_SYSTEM, GAMEPAD_TOGGLE_ROTATION_SYSTEM, &button_toggle_rotation_system_held);
+    update_input_state(state, BUTTON_TOGGLE_TRANSPARENCY, GAMEPAD_TOGGLE_TRANSPARENCY, &button_toggle_transparency_held);
     update_input_state(state, BUTTON_MUTE, GAMEPAD_MUTE, &button_mute_held);
 
     update_input_state(state, BUTTON_MYSTERY, GAMEPAD_MYSTERY, &button_mystery_held);
@@ -613,10 +616,12 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             break;
         case LOCK_GHOST:
             mod = 0.8f;
-            moda = 0.125f;
+            moda = transparency ? 0.125f : 0.25f;
             voidToLeft = voidToRight = voidAbove = voidBelow = false;
-            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 32);
-            SDL_RenderFillRect(renderer, &dest);
+            if (transparency) {
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 32);
+                SDL_RenderFillRect(renderer, &dest);
+            }
             break;
         case LOCK_NEXT:
             moda = 0.8f;
@@ -822,13 +827,13 @@ void render_game() {
     SDL_RenderClear(renderer);
 
     // Background.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.5f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, transparency ? 0.5f : 1.0f);
     SDL_FRect dst = {.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET, .w = 16.0f * 10.0f, .h = 16.0f * 20.0f};
     SDL_RenderFillRect(renderer, &dst);
 
     // Field border.
-    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, 0.8f);
-    else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, 0.8f);
+    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, transparency ? 0.8f : 1.0f);
+    else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, transparency ? 0.8f : 1.0f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
     SDL_RenderFillRect(renderer, &dst);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (10.0f * 16.0f), .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
@@ -867,7 +872,7 @@ void render_game() {
     SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock, ti_ars ? "Ti " : "TAP");
 
     if (game_state == STATE_WAIT) {
-        SDL_RenderDebugTextFormat(renderer, 112.0f, (FIELD_Y_OFFSET + (4.0f * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
+        SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (4.0f * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
 
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (5.0f * 16.0f)) * 2 , "Keyboard:");
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (5.5f * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetScancodeName(BUTTON_LEFT), SDL_GetScancodeName(BUTTON_RIGHT));
@@ -883,16 +888,17 @@ void render_game() {
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (10.5f * 16.0f)) * 2 , "- %s: Scale down", SDL_GetScancodeName(BUTTON_SCALE_DOWN));
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.0f * 16.0f)) * 2 , "- %s: Scale up", SDL_GetScancodeName(BUTTON_SCALE_UP));
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.5f * 16.0f)) * 2 , "- %s: Mute/unmute", SDL_GetScancodeName(BUTTON_MUTE));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.0f * 16.0f)) * 2 , "- %s: Toggle background transparency", SDL_GetScancodeName(BUTTON_TOGGLE_TRANSPARENCY));
 
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.5f * 16.0f)) * 2 , "Gamepad:");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.0f * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetGamepadStringForButton(GAMEPAD_LEFT), SDL_GetGamepadStringForButton(GAMEPAD_RIGHT));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.5f * 16.0f)) * 2 , "- %s: Sonic drop", SDL_GetGamepadStringForButton(GAMEPAD_SONIC_DROP));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.0f * 16.0f)) * 2 , "- %s: Soft drop", SDL_GetGamepadStringForButton(GAMEPAD_SOFT_DROP));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.5f * 16.0f)) * 2 , "- %s: Hard drop", SDL_GetGamepadStringForButton(GAMEPAD_HARD_DROP));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.0f * 16.0f)) * 2 , "- %s/%s: Rotate CCW", SDL_GetGamepadStringForButton(GAMEPAD_CCW_1), SDL_GetGamepadStringForButton(GAMEPAD_CCW_2));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.5f * 16.0f)) * 2 , "- %s: Rotate CW", SDL_GetGamepadStringForButton(GAMEPAD_CW));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.0f * 16.0f)) * 2 , "- %s: Start game", SDL_GetGamepadStringForButton(GAMEPAD_START));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.5f * 16.0f)) * 2 , "- %s: Reset game", SDL_GetGamepadStringForButton(GAMEPAD_RESET));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.0f * 16.0f)) * 2 , "Gamepad:");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.5f * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetGamepadStringForButton(GAMEPAD_LEFT), SDL_GetGamepadStringForButton(GAMEPAD_RIGHT));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.0f * 16.0f)) * 2 , "- %s: Sonic drop", SDL_GetGamepadStringForButton(GAMEPAD_SONIC_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.5f * 16.0f)) * 2 , "- %s: Soft drop", SDL_GetGamepadStringForButton(GAMEPAD_SOFT_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.0f * 16.0f)) * 2 , "- %s: Hard drop", SDL_GetGamepadStringForButton(GAMEPAD_HARD_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.5f * 16.0f)) * 2 , "- %s/%s: Rotate CCW", SDL_GetGamepadStringForButton(GAMEPAD_CCW_1), SDL_GetGamepadStringForButton(GAMEPAD_CCW_2));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.0f * 16.0f)) * 2 , "- %s: Rotate CW", SDL_GetGamepadStringForButton(GAMEPAD_CW));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.5f * 16.0f)) * 2 , "- %s: Start game", SDL_GetGamepadStringForButton(GAMEPAD_START));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (17.0f * 16.0f)) * 2 , "- %s: Reset game", SDL_GetGamepadStringForButton(GAMEPAD_RESET));
     }
 
     SDL_SetRenderScale(renderer, (float)render_scale, (float)render_scale);
@@ -913,6 +919,9 @@ bool state_machine_tick() {
 
     // Mute?
     if (IS_JUST_HELD(button_mute_held)) muted = !muted;
+
+    // Mute?
+    if (IS_JUST_HELD(button_toggle_transparency_held)) transparency = !transparency;
 
     // ARS/Ti ARS?
     if (IS_JUST_HELD(button_toggle_rotation_system_held)) ti_ars = !ti_ars;
