@@ -1151,44 +1151,44 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetWindowHitTest(window, window_hit_test, NULL);
 
     // Load the image for a block.
-    block_texture = load_image("block.bmp", block, sizeof block);
+    block_texture = load_image("data/block.bmp", block, sizeof block);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
 
     // Load the sounds.
-    load_sound(&lineclear_sound, "lineclear.wav", lineclear, sizeof lineclear);
-    load_sound(&linecollapse_sound, "linecollapse.wav", linecollapse, sizeof linecollapse);
-    load_sound(&pieceland_sound, "pieceland.wav", pieceland, sizeof pieceland);
-    load_sound(&piecelock_sound, "piecelock.wav", piecelock, sizeof piecelock);
-    load_sound(&irs_sound, "irs.wav", irs, sizeof irs);
-    load_sound(&ready_sound, "ready.wav", ready, sizeof ready);
-    load_sound(&go_sound, "go.wav", go, sizeof go);
+    load_sound(&lineclear_sound, "data/lineclear.wav", lineclear, sizeof lineclear);
+    load_sound(&linecollapse_sound, "data/linecollapse.wav", linecollapse, sizeof linecollapse);
+    load_sound(&pieceland_sound, "data/pieceland.wav", pieceland, sizeof pieceland);
+    load_sound(&piecelock_sound, "data/piecelock.wav", piecelock, sizeof piecelock);
+    load_sound(&irs_sound, "data/irs.wav", irs, sizeof irs);
+    load_sound(&ready_sound, "data/ready.wav", ready, sizeof ready);
+    load_sound(&go_sound, "data/go.wav", go, sizeof go);
 
     // Optional sounds
-    load_sound(&i_sound, "i_mino.wav", NULL, 0);
-    load_sound(&s_sound, "s_mino.wav", NULL, 0);
-    load_sound(&z_sound, "z_mino.wav", NULL, 0);
-    load_sound(&j_sound, "j_mino.wav", NULL, 0);
-    load_sound(&l_sound, "l_mino.wav", NULL, 0);
-    load_sound(&o_sound, "o_mino.wav", NULL, 0);
-    load_sound(&t_sound, "t_mino.wav", NULL, 0);
-    load_sound(&section_lock_sound, "section_lock.wav", NULL, 0);
-    load_sound(&section_pass_sound, "section_pass.wav", NULL, 0);
-    load_sound(&combo_sound, "combo.wav", NULL, 0);
-    load_sound(&tetris_sound, "tetris.wav", NULL, 0);
-    load_sound(&tetris_b2b_sound, "tetris_b2b.wav", NULL, 0);
+    load_sound(&i_sound, "data/i_mino.wav", NULL, 0);
+    load_sound(&s_sound, "data/s_mino.wav", NULL, 0);
+    load_sound(&z_sound, "data/z_mino.wav", NULL, 0);
+    load_sound(&j_sound, "data/j_mino.wav", NULL, 0);
+    load_sound(&l_sound, "data/l_mino.wav", NULL, 0);
+    load_sound(&o_sound, "data/o_mino.wav", NULL, 0);
+    load_sound(&t_sound, "data/t_mino.wav", NULL, 0);
+    load_sound(&section_lock_sound, "data/section_lock.wav", NULL, 0);
+    load_sound(&section_pass_sound, "data/section_pass.wav", NULL, 0);
+    load_sound(&combo_sound, "data/combo.wav", NULL, 0);
+    load_sound(&tetris_sound, "data/tetris.wav", NULL, 0);
+    load_sound(&tetris_b2b_sound, "data/tetris_b2b.wav", NULL, 0);
 
-    load_music("section_0_h.wav", &section_0_h, &section_0_h_len);
-    load_music("section_0_b.wav", &section_0_b, &section_0_b_len);
-    load_music("section_1_h.wav", &section_1_h, &section_1_h_len);
-    load_music("section_1_b.wav", &section_1_b, &section_1_b_len);
-    load_music("section_2_h.wav", &section_2_h, &section_2_h_len);
-    load_music("section_2_b.wav", &section_2_b, &section_2_b_len);
-    load_music("section_3_h.wav", &section_3_h, &section_3_h_len);
-    load_music("section_3_b.wav", &section_3_b, &section_3_b_len);
-    load_music("section_4_h.wav", &section_4_h, &section_4_h_len);
-    load_music("section_4_b.wav", &section_4_b, &section_4_b_len);
+    load_music("data/section_0_h.wav", &section_0_h, &section_0_h_len);
+    load_music("data/section_0_b.wav", &section_0_b, &section_0_b_len);
+    load_music("data/section_1_h.wav", &section_1_h, &section_1_h_len);
+    load_music("data/section_1_b.wav", &section_1_b, &section_1_b_len);
+    load_music("data/section_2_h.wav", &section_2_h, &section_2_h_len);
+    load_music("data/section_2_b.wav", &section_2_b, &section_2_b_len);
+    load_music("data/section_3_h.wav", &section_3_h, &section_3_h_len);
+    load_music("data/section_3_b.wav", &section_3_b, &section_3_b_len);
+    load_music("data/section_4_h.wav", &section_4_h, &section_4_h_len);
+    load_music("data/section_4_b.wav", &section_4_b, &section_4_b_len);
 
     // If a song has no head, or no body, copy the head to the body or vice versa.
     if (section_0_h == NULL) {

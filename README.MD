@@ -29,7 +29,7 @@ Controls can be rebound in `config.ini`. Defaults will be used if this file is a
 - `P`: Mute/unmute
 
 ## Replacing graphics
-The main skin for the blocks can be replaced by providing a file named `block.bmp`.
+The main skin for the blocks can be replaced by providing a file named `block.bmp` in a `data` directory alongside the game exe.
 
 This image should contain a 4 wide by 2 high grid of 16x16 pixel images. These images represent the shapes:
 
@@ -41,7 +41,7 @@ ZTJS
 X here being the skin used when you top out.
 
 ## Replacing sounds
-All of the built-in sounds can be overridden by providing specific wav files:
+All of the built-in sounds can be overridden by providing specific wav files in a `data` directory alongside the game exe:
 
 - `lineclear.wav`: Played when you clear a line.
 - `linecollapse.wav`: Played when the cleared lines collapse down.
