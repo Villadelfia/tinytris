@@ -1073,6 +1073,8 @@ bool state_machine_tick() {
         if (game_state_ctr == 0) {
             game_state = game_state_old;
             game_state_ctr = game_state_ctr_old;
+            // Allow IRS after pause end.
+            button_a_held = button_b_held = button_c_held = -1;
         } else if (game_state_ctr <= 3) {
             border_r = border_g = border_b = 1.0f;
         } else {
