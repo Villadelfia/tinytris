@@ -40,6 +40,13 @@ int32_t GAMEPAD_MUTE = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MYSTERY = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_TOGGLE_TRANSPARENCY = SDL_GAMEPAD_BUTTON_INVALID;
 
+int RENDER_SCALE = 2;
+bool TRANSPARENCY = true;
+bool MUTED = false;
+bool TI_ARS = true;
+float BGM_VOLUME = 0.6f;
+float SFX_VOLUME = 1.0f;
+
 typedef struct {
     uint8_t *wave_data;
     uint32_t wave_data_len;
@@ -224,6 +231,19 @@ static int parse_config(void* user, const char* section, const char* name, const
                 SDL_memcpy(SECTIONS + (SECTION_COUNT-1), &s, sizeof(section_music_t));
             }
         }
+    }
+
+    if (SDL_strcasecmp(section, "game") == 0) {
+        char *end;
+        const long v = SDL_strtol(value, &end, 10);
+        if (end == value) return 1;
+
+        if (SDL_strcasecmp(name, "render_scale") == 0) RENDER_SCALE = v;
+        if (SDL_strcasecmp(name, "transparent_field") == 0) TRANSPARENCY = v != 0;
+        if (SDL_strcasecmp(name, "audio_enabled") == 0) MUTED = v == 0;
+        if (SDL_strcasecmp(name, "tgm3_kicks") == 0) TI_ARS = v != 0;
+        if (SDL_strcasecmp(name, "bgm_volume") == 0) BGM_VOLUME = (float)v/100.0f;
+        if (SDL_strcasecmp(name, "sfx_volume") == 0) SFX_VOLUME = (float)v/100.0f;
     }
 
     return 1;

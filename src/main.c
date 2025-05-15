@@ -20,7 +20,6 @@ static SDL_AudioStream *music = NULL;
 #define FRAME_TIME (SDL_NS_PER_SECOND / SDL_SINT64_C(60))
 static Uint64 last_time = 0;
 static Sint64 accumulated_time = 0;
-int render_scale = 2;
 
 typedef struct {
     uint8_t *wave_data;
@@ -48,15 +47,12 @@ timing_t *current_timing;
 int accumulated_g = 0;
 int lines_cleared = 0;
 int clears[4] = {-1, -1, -1, -1};
-bool muted = false;
 bool mystery = false;
-bool ti_ars = true;
 bool section_locked = false;
 int previous_clears = 0;
 bool first_piece = true;
 bool intro = true;
 float volume = 1.0f;
-bool transparency = true;
 section_music_t *last_section = NULL;
 
 sound_t lineclear_sound;
@@ -107,8 +103,8 @@ float lerp(const float a, const float b, const float f) {
 }
 
 void apply_scale() {
-    SDL_SetWindowSize(window, 12*16*render_scale, 26*16*render_scale);
-    SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
+    SDL_SetWindowSize(window, 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
+    SDL_SetRenderScale(renderer, 1.0f * (float)RENDER_SCALE, 1.0f * (float)RENDER_SCALE);
 }
 
 void check_gamepad() {
@@ -175,7 +171,7 @@ void update_input_states() {
 }
 
 void play_sound(const sound_t *sound) {
-    if (muted) return;
+    if (MUTED || SFX_VOLUME == 0.0f) return;
     if (sound->stream == NULL) return;
     SDL_ClearAudioStream(sound->stream);
     SDL_PutAudioStreamData(sound->stream, sound->wave_data, (int)sound->wave_data_len);
@@ -263,7 +259,7 @@ void try_move(const int direction) {
     } else if (mystery) {
         int x, y;
         if (SDL_GetWindowPosition(window, &x, &y)) {
-            SDL_SetWindowPosition(window, x+(direction*(render_scale*16)), y);
+            SDL_SetWindowPosition(window, x+(direction*(RENDER_SCALE*16)), y);
         }
     }
 }
@@ -324,7 +320,7 @@ void try_rotate(const int direction) {
     }
 
     if (active.type == BLOCK_I) {
-        if (!ti_ars) return;
+        if (!TI_ARS) return;
         if (touching_stack() && (active.rotation_state == 0 || active.rotation_state == 2)) {
             // I -> right
             active.x += 1;
@@ -384,7 +380,7 @@ void try_rotate(const int direction) {
         }
 
         // T -> up
-        if (!ti_ars) return;
+        if (!TI_ARS) return;
         if (current_piece.type == BLOCK_T && piece_grounded()) {
             active.x += 1;
             active.y -= 1;
@@ -604,9 +600,9 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             break;
         case LOCK_GHOST:
             mod = 0.8f;
-            moda = transparency ? 0.125f : 0.25f;
+            moda = TRANSPARENCY ? 0.125f : 0.25f;
             voidToLeft = voidToRight = voidAbove = voidBelow = false;
-            if (transparency) {
+            if (TRANSPARENCY) {
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 32);
                 SDL_RenderFillRect(renderer, &dest);
             }
@@ -775,7 +771,7 @@ void get_music_data(section_music_t **section) {
 
 void play_music() {
     if (music == NULL) return;
-    if (muted) {
+    if (MUTED || BGM_VOLUME == 0.0f) {
         SDL_ClearAudioStream(music);
         return;
     }
@@ -809,7 +805,7 @@ void play_music() {
             intro = true;
         }
     }
-    SDL_SetAudioStreamGain(music, volume * 0.6f);
+    SDL_SetAudioStreamGain(music, volume * BGM_VOLUME);
 
     // If there's no audio to play, return;
     if (section == NULL) {
@@ -831,13 +827,13 @@ void render_game() {
     SDL_RenderClear(renderer);
 
     // Background.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, transparency ? 0.5f : 1.0f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? 0.5f : 1.0f);
     SDL_FRect dst = {.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET, .w = 16.0f * 10.0f, .h = 16.0f * 20.0f};
     SDL_RenderFillRect(renderer, &dst);
 
     // Field border.
-    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, transparency ? 0.8f : 1.0f);
-    else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, transparency ? 0.8f : 1.0f);
+    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, TRANSPARENCY ? 0.8f : 1.0f);
+    else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, TRANSPARENCY ? 0.8f : 1.0f);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
     SDL_RenderFillRect(renderer, &dst);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET + (10.0f * 16.0f), .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
@@ -871,9 +867,9 @@ void render_game() {
     render_current_block();
 
     // A bit of info.
-    SDL_SetRenderScale(renderer, (float)render_scale/2.0f, (float)render_scale/2.0f);
+    SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
     SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-    SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock, ti_ars ? "Ti " : "TAP");
+    SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock, TI_ARS ? "Ti " : "TAP");
 
     if (game_state == STATE_WAIT) {
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (4.0f * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
@@ -905,7 +901,7 @@ void render_game() {
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (17.0f * 16.0f)) * 2 , "- %s: Reset game", SDL_GetGamepadStringForButton(GAMEPAD_RESET));
     }
 
-    SDL_SetRenderScale(renderer, (float)render_scale, (float)render_scale);
+    SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
 
     SDL_RenderPresent(renderer);
 }
@@ -935,13 +931,13 @@ bool state_machine_tick() {
     if (IS_JUST_HELD(button_quit_held)) return false;
 
     // Mute?
-    if (IS_JUST_HELD(button_mute_held)) muted = !muted;
+    if (IS_JUST_HELD(button_mute_held)) MUTED = !MUTED;
 
     // Mute?
-    if (IS_JUST_HELD(button_toggle_transparency_held)) transparency = !transparency;
+    if (IS_JUST_HELD(button_toggle_transparency_held)) TRANSPARENCY = !TRANSPARENCY;
 
     // ARS/Ti ARS?
-    if (IS_JUST_HELD(button_toggle_rotation_system_held)) ti_ars = !ti_ars;
+    if (IS_JUST_HELD(button_toggle_rotation_system_held)) TI_ARS = !TI_ARS;
 
     // Huh?
     if (IS_JUST_HELD(button_mystery_held)) mystery = !mystery;
@@ -953,11 +949,11 @@ bool state_machine_tick() {
     }
 
     // Rescale?
-    if (IS_JUST_HELD(button_scale_down_held) && render_scale != 1) {
-        render_scale--;
+    if (IS_JUST_HELD(button_scale_down_held) && RENDER_SCALE != 1) {
+        RENDER_SCALE--;
         apply_scale();
     } else if (IS_JUST_HELD(button_scale_up_held)) {
-        render_scale++;
+        RENDER_SCALE++;
         apply_scale();
     }
 
@@ -1132,6 +1128,7 @@ void load_sound(sound_t *target, const char* file, void* fallback, const size_t 
         target->wave_data_len = 0;
     } else {
         target->stream = SDL_CreateAudioStream(&spec, NULL);
+        SDL_SetAudioStreamGain(target->stream, SFX_VOLUME);
         SDL_BindAudioStream(audio_device, target->stream);
     }
 }
@@ -1146,8 +1143,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     // Create the window.
     SDL_SetAppMetadata("Tinytris", "1.0", "org.villadelfia.tinytris");
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD);
-    SDL_CreateWindowAndRenderer("Tinytris", 12*16*render_scale, 26*16*render_scale, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
-    SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
+    SDL_CreateWindowAndRenderer("Tinytris", 12*16*RENDER_SCALE, 26*16*RENDER_SCALE, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
+    SDL_SetRenderScale(renderer, 1.0f * (float)RENDER_SCALE, 1.0f * (float)RENDER_SCALE);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
     // Make the window entirely draggable.

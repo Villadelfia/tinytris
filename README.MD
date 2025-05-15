@@ -86,6 +86,10 @@ Music is supported. The game will look for the following songs in the data direc
 
 Songs and sections can be reconfigured in `config.ini`.
 
+## Other settings
+
+Several other settings can be adjusted from their default values in `config.ini`.
+
 ## Features
 
-You just play. If you need to pause, just click away and the game will pause. There are intentionally basically no features.
+You just play. If you need to pause, just click away and the game will pause.
