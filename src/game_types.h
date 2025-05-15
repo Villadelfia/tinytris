@@ -39,6 +39,17 @@ typedef struct {
     bool floor_kicked;
 } live_block_t;
 
+typedef struct {
+    int32_t split_frames;
+    int32_t lap_frames;
+} split_t;
+
+typedef struct {
+    int32_t total_frames;
+    int32_t current_section;
+    split_t splits[4096];
+} game_details_t;
+
 typedef char* rotation_state_t;
 
 typedef rotation_state_t piece_def_t[4];

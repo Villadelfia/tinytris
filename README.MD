@@ -28,6 +28,7 @@ Controls can be rebound in `config.ini`. Defaults will be used if this file is a
 - `=`: Scale up
 - `P`: Mute/unmute
 - `T`: Toggle transparency of the field
+- `F1`: Toggle display of detailed timer splits
 
 ## Replacing graphics
 The main skin for the blocks can be replaced by providing a file named `block.png` in a `data` directory alongside the game exe.

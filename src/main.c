@@ -43,7 +43,7 @@ float border_b = 0.9f;
 float border_r_old = 0.1f;
 float border_g_old = 0.1f;
 float border_b_old = 0.9f;
-int level = 0;
+int level = 90;
 timing_t *current_timing;
 int accumulated_g = 0;
 int lines_cleared = 0;
@@ -53,8 +53,10 @@ bool section_locked = false;
 int previous_clears = 0;
 bool first_piece = true;
 bool intro = true;
+bool details = false;
 float volume = 1.0f;
 section_music_t *last_section = NULL;
+game_details_t game_details = {0};
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -94,6 +96,7 @@ int32_t button_mystery_held = 0;
 int32_t button_hard_drop_held = 0;
 int32_t button_toggle_rotation_system_held = 0;
 int32_t button_toggle_transparency_held = 0;
+int32_t button_details_held = 0;
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -167,6 +170,7 @@ void update_input_states() {
     update_input_state(state, BUTTON_TOGGLE_ROTATION_SYSTEM, GAMEPAD_TOGGLE_ROTATION_SYSTEM, &button_toggle_rotation_system_held);
     update_input_state(state, BUTTON_TOGGLE_TRANSPARENCY, GAMEPAD_TOGGLE_TRANSPARENCY, &button_toggle_transparency_held);
     update_input_state(state, BUTTON_MUTE, GAMEPAD_MUTE, &button_mute_held);
+    update_input_state(state, BUTTON_DETAILS, GAMEPAD_DETAILS, &button_details_held);
 
     update_input_state(state, BUTTON_MYSTERY, GAMEPAD_MYSTERY, &button_mystery_held);
 }
@@ -739,6 +743,54 @@ void render_field() {
     }
 }
 
+void toggle_details() {
+    details = !details;
+    SDL_SetWindowSize(window, details ? 26*16*RENDER_SCALE : 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
+}
+
+void render_details() {
+    if (!details) return;
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? 0.5f : 1.0f);
+    SDL_FRect dst = {.x = FIELD_X_OFFSET+(12*16), .y = FIELD_Y_OFFSET, .w = 16.0f * 12.0f, .h = 16.0f * 20.0f};
+    SDL_RenderFillRect(renderer, &dst);
+
+    SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1);
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+4),   "SECTION            TIME");
+
+    // Room for 13 sections.
+    int i = 0;
+    if (game_details.current_section > 13) i = game_details.current_section - 13;
+    for (int j = 0; i < game_details.current_section+1; ++i, j += 2) {
+        int section_start = i * 100;
+        int section_end = section_start + 99;
+        int lap_cs = game_details.splits[i].lap_frames;
+        int lap_seconds = lap_cs / 60;
+        int lap_minutes = lap_seconds / 60;
+        lap_cs = ((float)lap_cs/60.0f)*100;
+        lap_cs %= 100;
+        lap_seconds %= 60;
+        int split_cs = game_details.splits[i].split_frames;
+        int split_seconds = split_cs / 60;
+        int split_minutes = split_seconds / 60;
+        split_cs = ((float)split_cs/60.0f)*100;
+        split_cs %= 100;
+        split_seconds %= 60;
+
+        SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+22) + (float)(j*10),  "%04d-%04d (L)  %02d:%02d.%02d", section_start, section_end, lap_minutes, lap_seconds, lap_cs);
+        SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+32) + (float)(j*10),  "          (S) %03d:%02d.%02d", split_minutes, split_seconds, split_cs);
+    }
+
+
+    int total_cs = game_details.total_frames;
+    int total_seconds = total_cs / 60;
+    int total_minutes = total_seconds / 60;
+    total_cs = ((float)total_cs/60.0f)*100;
+    total_cs %= 100;
+    total_seconds %= 60;
+
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+310), "TOTAL         %03d:%02d.%02d", total_minutes, total_seconds, total_cs);
+}
+
 void get_music_data(section_music_t **section) {
     // Title screen.
     if (game_state == STATE_WAIT) {
@@ -872,6 +924,7 @@ void render_game() {
     render_next_block();
     render_tls();
     render_current_block();
+    render_details();
 
     // A bit of info.
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
@@ -930,12 +983,22 @@ void do_reset() {
     previous_clears = 0;
 }
 
+void update_details() {
+    game_details.total_frames++;
+    if (level >= (game_details.current_section + 1) * 100) game_details.current_section++;
+    game_details.splits[game_details.current_section].lap_frames++;
+    game_details.splits[game_details.current_section].split_frames = game_details.total_frames;
+}
+
 bool state_machine_tick() {
     // Get input.
     update_input_states();
 
     // Quit?
     if (IS_JUST_HELD(button_quit_held)) return false;
+
+    // Details?
+    if (IS_JUST_HELD(button_details_held)) toggle_details();
 
     // Mute?
     if (IS_JUST_HELD(button_mute_held)) MUTED = !MUTED;
@@ -974,6 +1037,7 @@ bool state_machine_tick() {
     } else if (game_state == STATE_BEGIN) {
         game_state_ctr--;
         if (game_state_ctr == 0) {
+            SDL_memset(&game_details, 0, sizeof(game_details_t));
             game_state = STATE_ARE;
             game_state_ctr = 1;
             play_sound(&go_sound);
@@ -985,6 +1049,7 @@ bool state_machine_tick() {
             border_b = lerp(0.1f, 0.9f, (float)(game_state_ctr-3)/57.0f);
         }
     } else if (game_state == STATE_ARE) {
+        update_details();
         game_state_ctr--;
         if (game_state_ctr == 0) {
             if (!first_piece) increment_level_piece_spawn();
@@ -1002,6 +1067,7 @@ bool state_machine_tick() {
             }
         }
     } else if (game_state == STATE_ACTIVE) {
+        update_details();
         game_state_ctr++;
         const bool was_grounded = piece_grounded();
 
@@ -1061,6 +1127,7 @@ bool state_machine_tick() {
             }
         }
     } else if (game_state == STATE_LOCKFLASH) {
+        update_details();
         game_state_ctr--;
         if (game_state_ctr != 0) return true;
         current_piece.type = BLOCK_VOID;
@@ -1075,6 +1142,7 @@ bool state_machine_tick() {
             game_state_ctr = current_timing->are - 3;
         }
     } else if (game_state == STATE_CLEAR) {
+        update_details();
         game_state_ctr--;
         if (game_state_ctr != 0) return true;
         play_sound(&linecollapse_sound);
