@@ -121,6 +121,10 @@ rotation_state_t get_rotation_state(const block_type_t piece, const int rotation
     return ROTATION_STATES[piece][rotation_state];
 }
 
+float lerp(const float a, const float b, const float f) {
+    return (float)(a * (1.0 - f) + (b * f));
+}
+
 void apply_scale() {
     SDL_SetWindowSize(window, 12*16*render_scale, 26*16*render_scale);
     SDL_SetRenderScale(renderer, 1.0f * (float)render_scale, 1.0f * (float)render_scale);
@@ -605,6 +609,9 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
         case LOCK_LOCKED:
             mod = 0.6f;
             moda = 0.8f;
+            if (game_state == STATE_GAMEOVER && game_state_ctr < 0) {
+                moda = lerp(0.8f, 0.0f, ((float)-game_state_ctr/100.0f));
+            }
             break;
         case LOCK_FLASH:
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 192);
@@ -630,14 +637,26 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
 
     SDL_SetTextureColorModFloat(block_texture, mod, mod, mod);
     SDL_SetTextureAlphaModFloat(block_texture, moda);
+    if (moda <= 0.0f) return;
     SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
-    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-
-    if(voidToLeft) SDL_RenderLine(renderer, dest.x, dest.y, dest.x, dest.y + dest.h - 1);
-    if(voidToRight) SDL_RenderLine(renderer, dest.x + dest.w - 1, dest.y, dest.x + dest.w - 1, dest.y + dest.h - 1);
-    if(voidAbove) SDL_RenderLine(renderer, dest.x, dest.y, dest.x + dest.w - 1, dest.y);
-    if(voidBelow) SDL_RenderLine(renderer, dest.x, dest.y + dest.h - 1, dest.x + dest.w - 1, dest.y + dest.h - 1);
+    SDL_SetRenderDrawColor(renderer, 161, 161, 151, 255);
+    if(voidToLeft) {
+        SDL_RenderLine(renderer, dest.x, dest.y, dest.x, dest.y + dest.h - 1);
+        SDL_RenderLine(renderer, dest.x+1, dest.y, dest.x+1, dest.y + dest.h - 1);
+    }
+    if(voidToRight) {
+        SDL_RenderLine(renderer, dest.x + dest.w - 1, dest.y, dest.x + dest.w - 1, dest.y + dest.h - 1);
+        SDL_RenderLine(renderer, dest.x + dest.w - 2, dest.y, dest.x + dest.w - 2, dest.y + dest.h - 1);
+    }
+    if(voidAbove) {
+        SDL_RenderLine(renderer, dest.x, dest.y, dest.x + dest.w - 1, dest.y);
+        SDL_RenderLine(renderer, dest.x, dest.y+1, dest.x + dest.w - 1, dest.y+1);
+    }
+    if(voidBelow) {
+        SDL_RenderLine(renderer, dest.x, dest.y + dest.h - 1, dest.x + dest.w - 1, dest.y + dest.h - 1);
+        SDL_RenderLine(renderer, dest.x, dest.y + dest.h - 2, dest.x + dest.w - 1, dest.y + dest.h - 2);
+    }
 }
 
 void render_field_block(const int x, const int y) {
@@ -758,7 +777,7 @@ void play_music() {
 
     // Fadeout.
     if (game_state == STATE_GAMEOVER || (level >= 280 && level < 300) || (level >= 480 && level < 500) || (level >= 680 && level < 700) || (level >= 980 && level < 1000)) {
-        volume -= 0.025;
+        volume -= 0.025f;
         if (volume < 0.0f) {
             volume = 0.0f;
             SDL_ClearAudioStream(music);
@@ -905,8 +924,21 @@ void render_game() {
     SDL_RenderPresent(renderer);
 }
 
-float lerp(const float a, const float b, const float f) {
-    return (float)(a * (1.0 - f) + (b * f));
+void do_reset() {
+    generate_first_piece();
+    memset(field, 0, sizeof field);
+    game_state = STATE_WAIT;
+    game_state_ctr = 60;
+    current_timing = &game_timing[0];
+    accumulated_g = 0;
+    level = 0;
+    lines_cleared = 0;
+    border_r = 0.1f;
+    border_g = 0.1f;
+    border_b = 0.9f;
+    first_piece = true;
+    section_locked = false;
+    previous_clears = 0;
 }
 
 bool state_machine_tick() {
@@ -930,20 +962,7 @@ bool state_machine_tick() {
 
     // Reset?
     if (IS_JUST_HELD(button_reset_held)) {
-        generate_first_piece();
-        memset(field, 0, sizeof field);
-        game_state = STATE_WAIT;
-        game_state_ctr = 60;
-        current_timing = &game_timing[0];
-        accumulated_g = 0;
-        level = 0;
-        lines_cleared = 0;
-        border_r = 0.1f;
-        border_g = 0.1f;
-        border_b = 0.9f;
-        first_piece = true;
-        section_locked = false;
-        previous_clears = 0;
+        do_reset();
         return true;
     }
 
@@ -1074,8 +1093,11 @@ bool state_machine_tick() {
         game_state_ctr = current_timing->line_are - 3;
     } else if (game_state == STATE_GAMEOVER) {
         game_state_ctr--;
-        if (game_state_ctr == -1) return true;
-        gray_line(game_state_ctr / 10);
+        if (game_state_ctr < 0) {
+            if (game_state_ctr == -120) do_reset();
+        } else {
+            gray_line(game_state_ctr / 10);
+        }
     } else if (game_state == STATE_PAUSED) {
         game_state_ctr--;
         if (game_state_ctr == 0) {
@@ -1283,7 +1305,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 SDL_AppResult SDL_AppIterate(void *appstate) {
     if (SDL_GetKeyboardFocus() == window) {
         if (!state_machine_tick()) return SDL_APP_SUCCESS;
-    } else if (game_state != STATE_PAUSED && game_state != STATE_WAIT) {
+    } else if (game_state != STATE_PAUSED && game_state != STATE_WAIT && game_state != STATE_GAMEOVER) {
         game_state_old = game_state;
         game_state_ctr_old = game_state_ctr;
         game_state = STATE_PAUSED;

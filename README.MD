@@ -23,10 +23,11 @@ Controls can be rebound in `config.ini`. Defaults will be used if this file is a
 - `R`: Restart game
 - `Enter`: Begin game
 - `ESC`: Quit game
-- `0`: Toggle between Classic ARS and Ti ARS, shown as [TAP] and [Ti ] respectively
+- `0`: Toggle between Classic ARS and Ti ARS, shown as `[TAP]` and `[Ti ]` respectively
 - `-`: Scale down
 - `=`: Scale up
 - `P`: Mute/unmute
+- `T`: Toggle transparency of the field
 
 ## Replacing graphics
 The main skin for the blocks can be replaced by providing a file named `block.bmp` in a `data` directory alongside the game exe.
