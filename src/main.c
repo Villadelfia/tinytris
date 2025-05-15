@@ -57,6 +57,7 @@ bool first_piece = true;
 bool intro = true;
 float volume = 1.0f;
 bool transparency = true;
+section_music_t *last_section = NULL;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -77,27 +78,7 @@ sound_t section_pass_sound;
 sound_t tetris_sound;
 sound_t combo_sound;
 sound_t tetris_b2b_sound;
-
-uint8_t *section_0_h;
-uint32_t section_0_h_len;
-uint8_t *section_0_b;
-uint32_t section_0_b_len;
-uint8_t *section_1_h;
-uint32_t section_1_h_len;
-uint8_t *section_1_b;
-uint32_t section_1_b_len;
-uint8_t *section_2_h;
-uint32_t section_2_h_len;
-uint8_t *section_2_b;
-uint32_t section_2_b_len;
-uint8_t *section_3_h;
-uint32_t section_3_h_len;
-uint8_t *section_3_b;
-uint32_t section_3_b_len;
-uint8_t *section_4_h;
-uint32_t section_4_h_len;
-uint8_t *section_4_b;
-uint32_t section_4_b_len;
+sound_t gameover_sound;
 
 int32_t button_u_held = 0;
 int32_t button_l_held = 0;
@@ -757,14 +738,45 @@ void render_field() {
     }
 }
 
-void play_music() {
-    if (muted) return;
-    if (music == NULL) return;
+void get_music_data(section_music_t **section) {
+    // Title screen.
+    if (game_state == STATE_WAIT) {
+        if (TITLE_MUSIC.level_start == -1) {
+            *section = &TITLE_MUSIC;
+        } else {
+            *section = NULL;
+        }
+        return;
+    }
 
-    // Stop the music when starting a new game.
-    if (game_state == STATE_BEGIN || game_state == STATE_WAIT) {
+    // Intro and game over.
+    if (game_state == STATE_BEGIN || game_state == STATE_GAMEOVER) {
+        *section = NULL;
+        return;
+    }
+
+    // Otherwise we're in game, get the most appropriate section.
+    section_music_t *current = NULL;
+    section_music_t *next = NULL;
+    for (int i = 0; i < SECTION_COUNT; ++i) {
+        if (SECTIONS[i].level_start <= level) {
+            current = SECTIONS + i;
+            if (i < SECTION_COUNT - 1) next = current + 1;
+            else next = NULL;
+        } else {
+            break;
+        }
+    }
+
+    *section = current;
+    if (next == NULL) return;
+    if (next->level_start - 20 <= level) *section = NULL;
+}
+
+void play_music() {
+    if (music == NULL) return;
+    if (muted) {
         SDL_ClearAudioStream(music);
-        intro = true;
         return;
     }
 
@@ -775,68 +787,42 @@ void play_music() {
     }
     if (SDL_AudioStreamDevicePaused(music)) SDL_ResumeAudioStreamDevice(music);
 
-    // Fadeout.
-    if (game_state == STATE_GAMEOVER || (level >= 280 && level < 300) || (level >= 480 && level < 500) || (level >= 680 && level < 700) || (level >= 980 && level < 1000)) {
-        volume -= 0.025f;
-        if (volume < 0.0f) {
-            volume = 0.0f;
-            SDL_ClearAudioStream(music);
-        }
+    // Get the appropriate section.
+    section_music_t *section = NULL;
+    get_music_data(&section);
 
-        SDL_SetAudioStreamGain(music, volume * 0.6f);
-        intro = true;
+    // If the section isn't the same as the previous section, we need to fade!
+    if (section != last_section) {
+        if (last_section != NULL) {
+            volume -= 0.025f;
+            if (volume < 0.0f) {
+                volume = 1.0f;
+                SDL_ClearAudioStream(music);
+                last_section = section;
+                intro = true;
+            }
+            section = last_section;
+        } else {
+            volume = 1.0f;
+            SDL_ClearAudioStream(music);
+            last_section = section;
+            intro = true;
+        }
+    }
+    SDL_SetAudioStreamGain(music, volume * 0.6f);
+
+    // If there's no audio to play, return;
+    if (section == NULL) {
+        SDL_ClearAudioStream(music);
         return;
     }
 
-    volume = 1.0f;
-    SDL_SetAudioStreamGain(music, volume * 0.6f);
-
-    // Otherwise, check what data to load.
-    uint8_t *data = NULL;
-    uint32_t data_len = 0;
-    if (intro) {
-        if (level >= 1000) {
-            data = section_4_h;
-            data_len = section_4_h_len;
-        } else if (level >= 700) {
-            data = section_3_h;
-            data_len = section_3_h_len;
-        } else if (level >= 500) {
-            data = section_2_h;
-            data_len = section_2_h_len;
-        } else if (level >= 300) {
-            data = section_1_h;
-            data_len = section_1_h_len;
-        } else {
-            data = section_0_h;
-            data_len = section_0_h_len;
-        }
-        intro = false;
-    } else {
-        if (level >= 1000) {
-            data = section_4_b;
-            data_len = section_4_b_len;
-        } else if (level >= 700) {
-            data = section_3_b;
-            data_len = section_3_b_len;
-        } else if (level >= 500) {
-            data = section_2_b;
-            data_len = section_2_b_len;
-        } else if (level >= 300) {
-            data = section_1_b;
-            data_len = section_1_b_len;
-        } else {
-            data = section_0_b;
-            data_len = section_0_b_len;
-        }
-    }
-
-    // If there's no song for this slot, ignore.
-    if (data == NULL) return;
-
     // Queue up.
-    if (SDL_GetAudioStreamAvailable(music) < data_len) {
-        SDL_PutAudioStreamData(music, data, (int)data_len);
+    if (intro) {
+        SDL_PutAudioStreamData(music, section->head.wave_data, (int)section->head.wave_data_len);
+        intro = false;
+    } else if (SDL_GetAudioStreamAvailable(music) < section->body.wave_data_len) {
+        SDL_PutAudioStreamData(music, section->body.wave_data, (int)section->body.wave_data_len);
     }
 }
 
@@ -1006,6 +992,7 @@ bool state_machine_tick() {
                 current_piece.type = BLOCK_VOID;
                 game_state = STATE_GAMEOVER;
                 game_state_ctr = 10 * 21 + 1;
+                play_sound(&gameover_sound);
             } else {
                 game_state = STATE_ACTIVE;
                 game_state_ctr = -1;
@@ -1149,20 +1136,6 @@ void load_sound(sound_t *target, const char* file, void* fallback, const size_t 
     }
 }
 
-void load_music(const char *file, uint8_t **target, uint32_t *len) {
-    SDL_AudioSpec spec;
-    if (!SDL_LoadWAV(file, &spec, target, len)) {
-        *target = NULL;
-        *len = 0;
-        return;
-    }
-
-    if (music == NULL) {
-        music = SDL_CreateAudioStream(&spec, NULL);
-        SDL_BindAudioStream(audio_device, music);
-    }
-}
-
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     load_config();
 
@@ -1208,88 +1181,12 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     load_sound(&combo_sound, "data/combo.wav", NULL, 0);
     load_sound(&tetris_sound, "data/tetris.wav", NULL, 0);
     load_sound(&tetris_b2b_sound, "data/tetris_b2b.wav", NULL, 0);
+    load_sound(&gameover_sound, "data/gameover.wav", NULL, 0);
 
-    load_music("data/section_0_h.wav", &section_0_h, &section_0_h_len);
-    load_music("data/section_0_b.wav", &section_0_b, &section_0_b_len);
-    load_music("data/section_1_h.wav", &section_1_h, &section_1_h_len);
-    load_music("data/section_1_b.wav", &section_1_b, &section_1_b_len);
-    load_music("data/section_2_h.wav", &section_2_h, &section_2_h_len);
-    load_music("data/section_2_b.wav", &section_2_b, &section_2_b_len);
-    load_music("data/section_3_h.wav", &section_3_h, &section_3_h_len);
-    load_music("data/section_3_b.wav", &section_3_b, &section_3_b_len);
-    load_music("data/section_4_h.wav", &section_4_h, &section_4_h_len);
-    load_music("data/section_4_b.wav", &section_4_b, &section_4_b_len);
-
-    // If a song has no head, or no body, copy the head to the body or vice versa.
-    if (section_0_h == NULL) {
-        section_0_h = section_0_b;
-        section_0_h_len = section_0_b_len;
-    }
-    if (section_0_b == NULL) {
-        section_0_b = section_0_h;
-        section_0_b_len = section_0_h_len;
-    }
-    if (section_1_h == NULL) {
-        section_1_h = section_1_b;
-        section_1_h_len = section_1_b_len;
-    }
-    if (section_1_b == NULL) {
-        section_1_b = section_1_h;
-        section_1_b_len = section_1_h_len;
-    }
-    if (section_2_h == NULL) {
-        section_2_h = section_2_b;
-        section_2_h_len = section_2_b_len;
-    }
-    if (section_2_b == NULL) {
-        section_2_b = section_2_h;
-        section_2_b_len = section_2_h_len;
-    }
-    if (section_3_h == NULL) {
-        section_3_h = section_3_b;
-        section_3_h_len = section_3_b_len;
-    }
-    if (section_3_b == NULL) {
-        section_3_b = section_3_h;
-        section_3_b_len = section_3_h_len;
-    }
-    if (section_4_h == NULL) {
-        section_4_h = section_4_b;
-        section_4_h_len = section_4_b_len;
-    }
-    if (section_4_b == NULL) {
-        section_4_b = section_4_h;
-        section_4_b_len = section_4_h_len;
-    }
-
-    // If the section 1 song is missing, copy the section 0 song.
-    if (section_1_h == NULL) {
-        section_1_h = section_0_h;
-        section_1_h_len = section_0_h_len;
-        section_1_b = section_0_b;
-        section_1_b_len = section_0_b_len;
-    }
-
-    // If the section 2 song is missing, copy the section 1 song.
-    if (section_2_h == NULL) {
-        section_2_h = section_1_h;
-        section_2_h_len = section_1_h_len;
-        section_2_b = section_1_b;
-        section_2_b_len = section_1_b_len;
-    }
-
-    // Etc...
-    if (section_3_h == NULL) {
-        section_3_h = section_2_h;
-        section_3_h_len = section_2_h_len;
-        section_3_b = section_2_b;
-        section_3_b_len = section_2_b_len;
-    }
-    if (section_4_h == NULL) {
-        section_4_h = section_3_h;
-        section_4_h_len = section_3_h_len;
-        section_4_b = section_3_b;
-        section_4_b_len = section_3_b_len;
+    // Setup music audio stream if needed.
+    if (TITLE_MUSIC.level_start == -1 || SECTION_COUNT != 0) {
+        music = SDL_CreateAudioStream(&MUSIC_SPEC, NULL);
+        SDL_BindAudioStream(audio_device, music);
     }
 
     last_time = SDL_GetTicksNS();

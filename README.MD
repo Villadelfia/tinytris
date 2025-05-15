@@ -66,10 +66,13 @@ In addition, several sounds are supported but are not included by default:
 - `tetris.wav`: Played when clearing 4 lines at once.
 - `tetris_b2b.wav`: Played when clearing a tetris right after clearing another tetris.
 - `combo.wav`: Played when clearing 2 or more lines after clearing one or more line.
+- `gameover.wav`: Played when topping out.
 
 ## Music
-Music is supported. The game will look for the following songs:
+Music is supported. The game will look for the following songs in the data directory by default:
 
+- `menu_h.wav`: Intro of the menu song.
+- `menu_b.wav`: Looping part of the menu song.
 - `section_0_h.wav`: Intro of the song played from 0-280.
 - `section_0_b.wav`: Looping part of the song played from 0-280.
 - `section_1_h.wav`: Intro of the song played from 300-480.
@@ -81,7 +84,7 @@ Music is supported. The game will look for the following songs:
 - `section_4_h.wav`: Intro of the song played from 1000+.
 - `section_4_b.wav`: Looping part of the song played from 1000+.
 
-A later section is missing, or a song has no intro, the game will try to Do The Right Thing.
+Songs and sections can be reconfigured in `config.ini`.
 
 ## Features
 

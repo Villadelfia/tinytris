@@ -72,6 +72,7 @@ static inline bool load_song(const char *file, uint8_t **head_data, uint32_t *he
     SDL_strlcat(with_wav, ".wav", len);
 
     // Try and load all possible wavs.
+    SDL_AudioSpec spec;
     uint8_t *with_h_data;
     uint32_t with_h_data_len;
     bool with_h_data_should_free = true;
@@ -81,20 +82,26 @@ static inline bool load_song(const char *file, uint8_t **head_data, uint32_t *he
     uint8_t *with_wav_data;
     uint32_t with_wav_data_len;
     bool with_wav_data_should_free = true;
-    if (!SDL_LoadWAV(with_h_wav, &MUSIC_SPEC, &with_h_data, &with_h_data_len)) {
+    if (!SDL_LoadWAV(with_h_wav, &spec, &with_h_data, &with_h_data_len)) {
         with_h_data = NULL;
         with_h_data_len = 0;
         with_h_data_should_free = false;
+    } else {
+        MUSIC_SPEC = spec;
     }
-    if (!SDL_LoadWAV(with_b_wav, &MUSIC_SPEC, &with_b_data, &with_b_data_len)) {
+    if (!SDL_LoadWAV(with_b_wav, &spec, &with_b_data, &with_b_data_len)) {
         with_b_data = NULL;
         with_b_data_len = 0;
         with_b_data_should_free = false;
+    } else {
+        MUSIC_SPEC = spec;
     }
-    if (!SDL_LoadWAV(with_wav, &MUSIC_SPEC, &with_wav_data, &with_wav_data_len)) {
+    if (!SDL_LoadWAV(with_wav, &spec, &with_wav_data, &with_wav_data_len)) {
         with_wav_data = NULL;
         with_wav_data_len = 0;
         with_wav_data_should_free = false;
+    } else {
+        MUSIC_SPEC = spec;
     }
 
     // Try and assign these to slots.
