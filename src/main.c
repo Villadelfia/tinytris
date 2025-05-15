@@ -1179,10 +1179,10 @@ SDL_HitTestResult window_hit_test(SDL_Window *win, const SDL_Point *area, void *
     return SDL_HITTEST_DRAGGABLE;
 }
 
-SDL_Texture *load_image(const char* file, void* fallback, const size_t fallback_size) {
+SDL_Texture *load_image(const char* file, const void* fallback, const size_t fallback_size) {
     SDL_Texture *target = IMG_LoadTexture(renderer, file);
     if (target == NULL) {
-        SDL_IOStream *t = SDL_IOFromMem(fallback, fallback_size);
+        SDL_IOStream *t = SDL_IOFromConstMem(fallback, fallback_size);
         target = IMG_LoadTextureTyped_IO(renderer, t, true, "PNG");
     }
     SDL_SetTextureScaleMode(target, SDL_SCALEMODE_NEAREST);
