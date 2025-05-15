@@ -30,9 +30,9 @@ Controls can be rebound in `config.ini`. Defaults will be used if this file is a
 - `T`: Toggle transparency of the field
 
 ## Replacing graphics
-The main skin for the blocks can be replaced by providing a file named `block.bmp` in a `data` directory alongside the game exe.
+The main skin for the blocks can be replaced by providing a file named `block.png` in a `data` directory alongside the game exe.
 
-This image should contain a 4 wide by 2 high grid of 16x16 pixel images. These images represent the shapes:
+This image should contain a 4 wide by 2 high grid of square images. These images represent the shapes:
 
 ```text
 XILO
@@ -42,47 +42,47 @@ ZTJS
 X here being the skin used when you top out.
 
 ## Replacing sounds
-All of the built-in sounds can be overridden by providing specific wav files in a `data` directory alongside the game exe:
+All of the built-in sounds can be overridden by providing specific ogg files in a `data` directory alongside the game exe:
 
-- `lineclear.wav`: Played when you clear a line.
-- `linecollapse.wav`: Played when the cleared lines collapse down.
-- `pieceland.wav`: Played when a piece hits the stack.
-- `piecelock.wav`: Played when a piece locks.
-- `irs.wav`: Played when a piece spawns with initial rotation applied.
-- `ready.wav`: Played at the start of the new game countdown.
-- `go.wav`: Played at the end of the new game countdown.
+- `lineclear.ogg`: Played when you clear a line.
+- `linecollapse.ogg`: Played when the cleared lines collapse down.
+- `pieceland.ogg`: Played when a piece hits the stack.
+- `piecelock.ogg`: Played when a piece locks.
+- `irs.ogg`: Played when a piece spawns with initial rotation applied.
+- `ready.ogg`: Played at the start of the new game countdown.
+- `go.ogg`: Played at the end of the new game countdown.
 
 In addition, several sounds are supported but are not included by default:
 
-- `i_mino.wav`: Played when a piece spawns and the next mino is an I piece.
-- `s_mino.wav`: Played when a piece spawns and the next mino is an S piece.
-- `z_mino.wav`: Played when a piece spawns and the next mino is a Z piece.
-- `j_mino.wav`: Played when a piece spawns and the next mino is a J piece.
-- `l_mino.wav`: Played when a piece spawns and the next mino is a L piece.
-- `o_mino.wav`: Played when a piece spawns and the next mino is an O piece.
-- `t_mino.wav`: Played when a piece spawns and the next mino is a T piece.
-- `section_lock.wav`: Played once if the level counter gets stuck at a section break.
-- `section_pass.wav`: Played when the level counter rolls over a new section.
-- `tetris.wav`: Played when clearing 4 lines at once.
-- `tetris_b2b.wav`: Played when clearing a tetris right after clearing another tetris.
-- `combo.wav`: Played when clearing 2 or more lines after clearing one or more line.
-- `gameover.wav`: Played when topping out.
+- `i_mino.ogg`: Played when a piece spawns and the next mino is an I piece.
+- `s_mino.ogg`: Played when a piece spawns and the next mino is an S piece.
+- `z_mino.ogg`: Played when a piece spawns and the next mino is a Z piece.
+- `j_mino.ogg`: Played when a piece spawns and the next mino is a J piece.
+- `l_mino.ogg`: Played when a piece spawns and the next mino is a L piece.
+- `o_mino.ogg`: Played when a piece spawns and the next mino is an O piece.
+- `t_mino.ogg`: Played when a piece spawns and the next mino is a T piece.
+- `section_lock.ogg`: Played once if the level counter gets stuck at a section break.
+- `section_pass.ogg`: Played when the level counter rolls over a new section.
+- `tetris.ogg`: Played when clearing 4 lines at once.
+- `tetris_b2b.ogg`: Played when clearing a tetris right after clearing another tetris.
+- `combo.ogg`: Played when clearing 2 or more lines after clearing one or more line.
+- `gameover.ogg`: Played when topping out.
 
 ## Music
 Music is supported. The game will look for the following songs in the data directory by default:
 
-- `menu_h.wav`: Intro of the menu song.
-- `menu_b.wav`: Looping part of the menu song.
-- `section_0_h.wav`: Intro of the song played from 0-280.
-- `section_0_b.wav`: Looping part of the song played from 0-280.
-- `section_1_h.wav`: Intro of the song played from 300-480.
-- `section_1_b.wav`: Looping part of the song played from 300-480.
-- `section_2_h.wav`: Intro of the song played from 500-680.
-- `section_2_b.wav`: Looping part of the song played from 500-680.
-- `section_3_h.wav`: Intro of the song played from 700-980.
-- `section_3_b.wav`: Looping part of the song played from 700-980.
-- `section_4_h.wav`: Intro of the song played from 1000+.
-- `section_4_b.wav`: Looping part of the song played from 1000+.
+- `menu_h.ogg`: Intro of the menu song.
+- `menu_b.ogg`: Looping part of the menu song.
+- `section_0_h.ogg`: Intro of the song played from 0-280.
+- `section_0_b.ogg`: Looping part of the song played from 0-280.
+- `section_1_h.ogg`: Intro of the song played from 300-480.
+- `section_1_b.ogg`: Looping part of the song played from 300-480.
+- `section_2_h.ogg`: Intro of the song played from 500-680.
+- `section_2_b.ogg`: Looping part of the song played from 500-680.
+- `section_3_h.ogg`: Intro of the song played from 700-980.
+- `section_3_b.ogg`: Looping part of the song played from 700-980.
+- `section_4_h.ogg`: Intro of the song played from 1000+.
+- `section_4_b.ogg`: Looping part of the song played from 1000+.
 
 Songs and sections can be reconfigured in `config.ini`.
 

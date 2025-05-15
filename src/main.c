@@ -22,7 +22,7 @@ static Uint64 last_time = 0;
 static Sint64 accumulated_time = 0;
 
 typedef struct {
-    uint8_t *wave_data;
+    int16_t *wave_data;
     uint32_t wave_data_len;
     SDL_AudioStream *stream;
 } sound_t;
@@ -547,30 +547,34 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
         .w = 16.0f,
         .h = 16.0f
     };
+    float w, h;
+    SDL_GetTextureSize(block_texture, &w, &h);
+    h /= 2.0f;
+    w /= 4.0f;
     switch(block) {
         case BLOCK_X:
-            src = (SDL_FRect){.x = 0.0f, .y = 0.0f, .w = 16.0f, .h = 16.0f};
+            src = (SDL_FRect){.x = 0.0f, .y = 0.0f, .w = w, .h = h};
             break;
         case BLOCK_I:
-            src = (SDL_FRect){.x = 16.0f, .y = 0.0f, .w = 16.0f, .h = 16.0f};
+            src = (SDL_FRect){.x = 16.0f, .y = 0.0f, .w = w, .h = h};
             break;
         case BLOCK_L:
-            src = (SDL_FRect){.x = 32.0f, .y = 0.0f, .w = 16.0f, .h = 16.0f};
+            src = (SDL_FRect){.x = 32.0f, .y = 0.0f, .w = w, .h = h};
             break;
         case BLOCK_O:
-            src = (SDL_FRect){.x = 48.0f, .y = 0.0f, .w = 16.0f, .h = 16.0f};
+            src = (SDL_FRect){.x = 48.0f, .y = 0.0f, .w = w, .h = h};
             break;
         case BLOCK_Z:
-            src = (SDL_FRect){.x = 0.0f, .y = 16.0f, .w = 16.0f, .h = 16.0f};
+            src = (SDL_FRect){.x = 0.0f, .y = 16.0f, .w = w, .h = h};
             break;
         case BLOCK_T:
-            src = (SDL_FRect){.x = 16.0f, .y = 16.0f, .w = 16.0f, .h = 16.0f};
+            src = (SDL_FRect){.x = 16.0f, .y = 16.0f, .w = w, .h = h};
             break;
         case BLOCK_J:
-            src = (SDL_FRect){.x = 32.0f, .y = 16.0f, .w = 16.0f, .h = 16.0f};
+            src = (SDL_FRect){.x = 32.0f, .y = 16.0f, .w = w, .h = h};
             break;
         case BLOCK_S:
-            src = (SDL_FRect){.x = 48.0f, .y = 16.0f, .w = 16.0f, .h = 16.0f};
+            src = (SDL_FRect){.x = 48.0f, .y = 16.0f, .w = w, .h = h};
             break;
         default:
             return;
@@ -815,9 +819,11 @@ void play_music() {
 
     // Queue up.
     if (intro) {
+        SDL_SetAudioStreamFormat(music, &section->head.format, NULL);
         SDL_PutAudioStreamData(music, section->head.wave_data, (int)section->head.wave_data_len);
         intro = false;
     } else if (SDL_GetAudioStreamAvailable(music) < section->body.wave_data_len) {
+        SDL_SetAudioStreamFormat(music, &section->body.format, NULL);
         SDL_PutAudioStreamData(music, section->body.wave_data, (int)section->body.wave_data_len);
     }
 }
@@ -1108,7 +1114,7 @@ SDL_Texture *load_image(const char* file, void* fallback, const size_t fallback_
     SDL_Texture *target = IMG_LoadTexture(renderer, file);
     if (target == NULL) {
         SDL_IOStream *t = SDL_IOFromMem(fallback, fallback_size);
-        target = IMG_LoadTexture_IO(renderer, t, true);
+        target = IMG_LoadTextureTyped_IO(renderer, t, true, "PNG");
     }
     SDL_SetTextureScaleMode(target, SDL_SCALEMODE_NEAREST);
     SDL_SetTextureBlendMode(target, SDL_BLENDMODE_BLEND);
@@ -1116,17 +1122,21 @@ SDL_Texture *load_image(const char* file, void* fallback, const size_t fallback_
 }
 
 void load_sound(sound_t *target, const char* file, void* fallback, const size_t fallback_size) {
-    SDL_AudioSpec spec;
-    bool success = SDL_LoadWAV(file, &spec, &target->wave_data, &target->wave_data_len);
-    if (!success && fallback != NULL) {
-        SDL_IOStream *t = SDL_IOFromMem(fallback, fallback_size);
-        success = SDL_LoadWAV_IO(t, true, &spec, &target->wave_data, &target->wave_data_len);
+    int channels, sample_rate;
+    int16_t *data;
+    int32_t data_len = stb_vorbis_decode_filename(file, &channels, &sample_rate, &data);
+    if (data_len == -1 && fallback != NULL) {
+        data_len = stb_vorbis_decode_memory(fallback, fallback_size, &channels, &sample_rate, &data);
     }
-    if (!success) {
+
+    if (data_len == -1) {
         target->stream = NULL;
         target->wave_data = NULL;
         target->wave_data_len = 0;
     } else {
+        target->wave_data = data;
+        target->wave_data_len = data_len * channels * 2;
+        SDL_AudioSpec spec = {.format = SDL_AUDIO_S16, .channels = channels, .freq = sample_rate};
         target->stream = SDL_CreateAudioStream(&spec, NULL);
         SDL_SetAudioStreamGain(target->stream, SFX_VOLUME);
         SDL_BindAudioStream(audio_device, target->stream);
@@ -1151,38 +1161,39 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetWindowHitTest(window, window_hit_test, NULL);
 
     // Load the image for a block.
-    block_texture = load_image("data/block.bmp", block, sizeof block);
+    block_texture = load_image("data/block.png", block, sizeof block);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
 
     // Load the sounds.
-    load_sound(&lineclear_sound, "data/lineclear.wav", lineclear, sizeof lineclear);
-    load_sound(&linecollapse_sound, "data/linecollapse.wav", linecollapse, sizeof linecollapse);
-    load_sound(&pieceland_sound, "data/pieceland.wav", pieceland, sizeof pieceland);
-    load_sound(&piecelock_sound, "data/piecelock.wav", piecelock, sizeof piecelock);
-    load_sound(&irs_sound, "data/irs.wav", irs, sizeof irs);
-    load_sound(&ready_sound, "data/ready.wav", ready, sizeof ready);
-    load_sound(&go_sound, "data/go.wav", go, sizeof go);
+    load_sound(&lineclear_sound, "data/lineclear.ogg", lineclear, sizeof lineclear);
+    load_sound(&linecollapse_sound, "data/linecollapse.ogg", linecollapse, sizeof linecollapse);
+    load_sound(&pieceland_sound, "data/pieceland.ogg", pieceland, sizeof pieceland);
+    load_sound(&piecelock_sound, "data/piecelock.ogg", piecelock, sizeof piecelock);
+    load_sound(&irs_sound, "data/irs.ogg", irs, sizeof irs);
+    load_sound(&ready_sound, "data/ready.ogg", ready, sizeof ready);
+    load_sound(&go_sound, "data/go.ogg", go, sizeof go);
 
     // Optional sounds
-    load_sound(&i_sound, "data/i_mino.wav", NULL, 0);
-    load_sound(&s_sound, "data/s_mino.wav", NULL, 0);
-    load_sound(&z_sound, "data/z_mino.wav", NULL, 0);
-    load_sound(&j_sound, "data/j_mino.wav", NULL, 0);
-    load_sound(&l_sound, "data/l_mino.wav", NULL, 0);
-    load_sound(&o_sound, "data/o_mino.wav", NULL, 0);
-    load_sound(&t_sound, "data/t_mino.wav", NULL, 0);
-    load_sound(&section_lock_sound, "data/section_lock.wav", NULL, 0);
-    load_sound(&section_pass_sound, "data/section_pass.wav", NULL, 0);
-    load_sound(&combo_sound, "data/combo.wav", NULL, 0);
-    load_sound(&tetris_sound, "data/tetris.wav", NULL, 0);
-    load_sound(&tetris_b2b_sound, "data/tetris_b2b.wav", NULL, 0);
-    load_sound(&gameover_sound, "data/gameover.wav", NULL, 0);
+    load_sound(&i_sound, "data/i_mino.ogg", NULL, 0);
+    load_sound(&s_sound, "data/s_mino.ogg", NULL, 0);
+    load_sound(&z_sound, "data/z_mino.ogg", NULL, 0);
+    load_sound(&j_sound, "data/j_mino.ogg", NULL, 0);
+    load_sound(&l_sound, "data/l_mino.ogg", NULL, 0);
+    load_sound(&o_sound, "data/o_mino.ogg", NULL, 0);
+    load_sound(&t_sound, "data/t_mino.ogg", NULL, 0);
+    load_sound(&section_lock_sound, "data/section_lock.ogg", NULL, 0);
+    load_sound(&section_pass_sound, "data/section_pass.ogg", NULL, 0);
+    load_sound(&combo_sound, "data/combo.ogg", NULL, 0);
+    load_sound(&tetris_sound, "data/tetris.ogg", NULL, 0);
+    load_sound(&tetris_b2b_sound, "data/tetris_b2b.ogg", NULL, 0);
+    load_sound(&gameover_sound, "data/gameover.ogg", NULL, 0);
 
     // Setup music audio stream if needed.
     if (TITLE_MUSIC.level_start == -1 || SECTION_COUNT != 0) {
-        music = SDL_CreateAudioStream(&MUSIC_SPEC, NULL);
+        SDL_AudioSpec s = {.format = SDL_AUDIO_S16, .channels = 2, .freq = 44100};
+        music = SDL_CreateAudioStream(&s, NULL);
         SDL_BindAudioStream(audio_device, music);
     }
 

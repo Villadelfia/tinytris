@@ -48,8 +48,9 @@ float BGM_VOLUME = 0.6f;
 float SFX_VOLUME = 1.0f;
 
 typedef struct {
-    uint8_t *wave_data;
+    int16_t *wave_data;
     uint32_t wave_data_len;
+    SDL_AudioSpec format;
 } wave_data_t;
 typedef struct {
     int32_t level_start;
@@ -57,58 +58,73 @@ typedef struct {
     wave_data_t body;
 } section_music_t;
 
-SDL_AudioSpec MUSIC_SPEC;
 int32_t SECTION_COUNT = 0;
 section_music_t *SECTIONS = NULL;
 section_music_t TITLE_MUSIC = {0};
 
-static inline bool load_song(const char *file, uint8_t **head_data, uint32_t *head_data_len, uint8_t **body_data, uint32_t *body_data_len) {
+static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16_t **head_data, uint32_t *head_data_len, SDL_AudioSpec *body_format, int16_t **body_data, uint32_t *body_data_len) {
     // Build the new strings.
     const size_t len = SDL_strlen(file) + 20;
-    char *with_h_wav = calloc(len, sizeof(char));
-    char *with_b_wav = calloc(len, sizeof(char));
-    char *with_wav = calloc(len, sizeof(char));
-    SDL_strlcpy(with_h_wav, "data/", len);
-    SDL_strlcpy(with_b_wav, "data/", len);
-    SDL_strlcpy(with_wav, "data/", len);
-    SDL_strlcat(with_h_wav, file, len);
-    SDL_strlcat(with_b_wav, file, len);
-    SDL_strlcat(with_wav, file, len);
-    SDL_strlcat(with_h_wav, "_h.wav", len);
-    SDL_strlcat(with_b_wav, "_b.wav", len);
-    SDL_strlcat(with_wav, ".wav", len);
+    char *with_h_ogg = calloc(len, sizeof(char));
+    char *with_b_ogg = calloc(len, sizeof(char));
+    char *with_ogg = calloc(len, sizeof(char));
+    SDL_strlcpy(with_h_ogg, "data/", len);
+    SDL_strlcpy(with_b_ogg, "data/", len);
+    SDL_strlcpy(with_ogg, "data/", len);
+    SDL_strlcat(with_h_ogg, file, len);
+    SDL_strlcat(with_b_ogg, file, len);
+    SDL_strlcat(with_ogg, file, len);
+    SDL_strlcat(with_h_ogg, "_h.ogg", len);
+    SDL_strlcat(with_b_ogg, "_b.ogg", len);
+    SDL_strlcat(with_ogg, ".ogg", len);
 
     // Try and load all possible wavs.
-    SDL_AudioSpec spec;
-    uint8_t *with_h_data;
-    uint32_t with_h_data_len;
+    int16_t *with_h_data;
+    SDL_AudioSpec with_h_spec = {0};
     bool with_h_data_should_free = true;
-    uint8_t *with_b_data;
-    uint32_t with_b_data_len;
+    int16_t *with_b_data;
+    SDL_AudioSpec with_b_spec = {0};
     bool with_b_data_should_free = true;
-    uint8_t *with_wav_data;
-    uint32_t with_wav_data_len;
-    bool with_wav_data_should_free = true;
-    if (!SDL_LoadWAV(with_h_wav, &spec, &with_h_data, &with_h_data_len)) {
+    int16_t *with_ogg_data;
+    SDL_AudioSpec with_ogg_spec = {0};
+    bool with_ogg_data_should_free = true;
+
+    int channels, sample_rate;
+
+    int32_t with_h_data_len = stb_vorbis_decode_filename(with_h_ogg, &channels, &sample_rate, &with_h_data);
+    if (with_h_data_len == -1) {
         with_h_data = NULL;
         with_h_data_len = 0;
         with_h_data_should_free = false;
     } else {
-        MUSIC_SPEC = spec;
+        with_h_spec.channels = channels;
+        with_h_spec.freq = sample_rate;
+        with_h_spec.format = SDL_AUDIO_S16;
+        with_h_data_len *= channels * 2;
     }
-    if (!SDL_LoadWAV(with_b_wav, &spec, &with_b_data, &with_b_data_len)) {
+
+    int32_t with_b_data_len = stb_vorbis_decode_filename(with_b_ogg, &channels, &sample_rate, &with_b_data);
+    if (with_b_data_len == -1) {
         with_b_data = NULL;
         with_b_data_len = 0;
         with_b_data_should_free = false;
     } else {
-        MUSIC_SPEC = spec;
+        with_b_spec.channels = channels;
+        with_b_spec.freq = sample_rate;
+        with_b_spec.format = SDL_AUDIO_S16;
+        with_b_data_len *= channels * 2;
     }
-    if (!SDL_LoadWAV(with_wav, &spec, &with_wav_data, &with_wav_data_len)) {
-        with_wav_data = NULL;
-        with_wav_data_len = 0;
-        with_wav_data_should_free = false;
+
+    int32_t with_ogg_data_len = stb_vorbis_decode_filename(with_ogg, &channels, &sample_rate, &with_ogg_data);
+    if (with_ogg_data_len == -1) {
+        with_ogg_data = NULL;
+        with_ogg_data_len = 0;
+        with_ogg_data_should_free = false;
     } else {
-        MUSIC_SPEC = spec;
+        with_ogg_spec.channels = channels;
+        with_ogg_spec.freq = sample_rate;
+        with_ogg_spec.format = SDL_AUDIO_S16;
+        with_ogg_data_len *= channels * 2;
     }
 
     // Try and assign these to slots.
@@ -125,21 +141,25 @@ static inline bool load_song(const char *file, uint8_t **head_data, uint32_t *he
         // Store the data.
         *head_data = with_h_data;
         *head_data_len = with_h_data_len;
+        *head_format = with_h_spec;
         *body_data = with_b_data;
         *body_data_len = with_b_data_len;
-    } else if (with_wav_data != NULL) {
-        // Do we have a bare .wav?
+        *body_format = with_b_spec;
+    } else if (with_ogg_data != NULL) {
+        // Do we have a bare .ogg?
         // Mark as used.
-        with_wav_data_should_free = false;
+        with_ogg_data_should_free = false;
 
         // Success!
         retval = true;
 
         // Store the data.
-        *head_data = with_wav_data;
-        *head_data_len = with_wav_data_len;
-        *body_data = with_wav_data;
-        *body_data_len = with_wav_data_len;
+        *head_data = with_ogg_data;
+        *head_data_len = with_ogg_data_len;
+        *head_format = with_ogg_spec;
+        *body_data = with_ogg_data;
+        *body_data_len = with_ogg_data_len;
+        *body_format = with_ogg_spec;
     } else if (with_h_data != NULL || with_b_data != NULL) {
         // Last ditch attempt at doing something useful...
         // Just store whatever we found as both head and body.
@@ -148,24 +168,28 @@ static inline bool load_song(const char *file, uint8_t **head_data, uint32_t *he
             with_h_data_should_free = false;
             *head_data = with_h_data;
             *head_data_len = with_h_data_len;
+            *head_format = with_h_spec;
             *body_data = with_h_data;
             *body_data_len = with_h_data_len;
+            *body_format = with_h_spec;
         } else {
             with_b_data_should_free = false;
             *head_data = with_b_data;
             *head_data_len = with_b_data_len;
+            *head_format = with_b_spec;
             *body_data = with_b_data;
             *body_data_len = with_b_data_len;
+            *body_format = with_b_spec;
         }
     }
 
     // Free the new strings and buffers that ended up unused.
-    SDL_free(with_wav);
-    SDL_free(with_b_wav);
-    SDL_free(with_h_wav);
+    SDL_free(with_ogg);
+    SDL_free(with_b_ogg);
+    SDL_free(with_h_ogg);
     if (with_h_data_should_free) SDL_free(with_h_data);
     if (with_b_data_should_free) SDL_free(with_b_data);
-    if (with_wav_data_should_free) SDL_free(with_wav_data);
+    if (with_ogg_data_should_free) SDL_free(with_ogg_data);
     return retval;
 }
 
@@ -215,7 +239,7 @@ static int parse_config(void* user, const char* section, const char* name, const
     if (SDL_strcasecmp(section, "music") == 0) {
         if (SDL_strcasecmp(name, "menu") == 0) {
             // Load menu...
-            if (load_song(value, &TITLE_MUSIC.head.wave_data, &TITLE_MUSIC.head.wave_data_len, &TITLE_MUSIC.body.wave_data, &TITLE_MUSIC.body.wave_data_len)) {
+            if (load_song(value, &TITLE_MUSIC.head.format, &TITLE_MUSIC.head.wave_data, &TITLE_MUSIC.head.wave_data_len, &TITLE_MUSIC.body.format, &TITLE_MUSIC.body.wave_data, &TITLE_MUSIC.body.wave_data_len)) {
                 TITLE_MUSIC.level_start = -1;
             }
         } else {
@@ -225,7 +249,7 @@ static int parse_config(void* user, const char* section, const char* name, const
             if (end == name) return 1;
             section_music_t s = {0};
             s.level_start = level_start;
-            if (load_song(value, &s.head.wave_data, &s.head.wave_data_len, &s.body.wave_data, &s.body.wave_data_len)) {
+            if (load_song(value, &s.head.format, &s.head.wave_data, &s.head.wave_data_len, &s.body.format, &s.body.wave_data, &s.body.wave_data_len)) {
                 SECTION_COUNT++;
                 SECTIONS = SDL_realloc(SECTIONS, SECTION_COUNT * sizeof(section_music_t));
                 SDL_memcpy(SECTIONS + (SECTION_COUNT-1), &s, sizeof(section_music_t));
