@@ -66,9 +66,9 @@ section_music_t TITLE_MUSIC = {0};
 static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16_t **head_data, uint32_t *head_data_len, SDL_AudioSpec *body_format, int16_t **body_data, uint32_t *body_data_len) {
     // Build the new strings.
     const size_t len = SDL_strlen(file) + 20;
-    char *with_h_ogg = calloc(len, sizeof(char));
-    char *with_b_ogg = calloc(len, sizeof(char));
-    char *with_ogg = calloc(len, sizeof(char));
+    char *with_h_ogg = SDL_calloc(len, sizeof(char));
+    char *with_b_ogg = SDL_calloc(len, sizeof(char));
+    char *with_ogg = SDL_calloc(len, sizeof(char));
     SDL_strlcpy(with_h_ogg, "data/", len);
     SDL_strlcpy(with_b_ogg, "data/", len);
     SDL_strlcpy(with_ogg, "data/", len);
