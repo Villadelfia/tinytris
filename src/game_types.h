@@ -26,6 +26,7 @@ typedef struct {
     block_type_t type;
     lock_status_t lock_status;
     float lock_param;
+    int locked_at;
 } block_t;
 
 typedef struct {

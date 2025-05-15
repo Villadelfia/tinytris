@@ -54,6 +54,8 @@ int previous_clears = 0;
 bool first_piece = true;
 bool intro = true;
 bool details = false;
+bool mode_20g = false;
+int mode_invis = false;
 float volume = 1.0f;
 section_music_t *last_section = NULL;
 game_details_t game_details = {0};
@@ -97,6 +99,8 @@ int32_t button_hard_drop_held = 0;
 int32_t button_toggle_rotation_system_held = 0;
 int32_t button_toggle_transparency_held = 0;
 int32_t button_details_held = 0;
+int32_t button_20g_held = 0;
+int32_t button_invis_held = 0;
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -107,7 +111,7 @@ float lerp(const float a, const float b, const float f) {
 }
 
 void apply_scale() {
-    SDL_SetWindowSize(window, 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
+    SDL_SetWindowSize(window, details ? 26*16*RENDER_SCALE : 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
     SDL_SetRenderScale(renderer, 1.0f * (float)RENDER_SCALE, 1.0f * (float)RENDER_SCALE);
 }
 
@@ -171,6 +175,8 @@ void update_input_states() {
     update_input_state(state, BUTTON_TOGGLE_TRANSPARENCY, GAMEPAD_TOGGLE_TRANSPARENCY, &button_toggle_transparency_held);
     update_input_state(state, BUTTON_MUTE, GAMEPAD_MUTE, &button_mute_held);
     update_input_state(state, BUTTON_DETAILS, GAMEPAD_DETAILS, &button_details_held);
+    update_input_state(state, BUTTON_20G, GAMEPAD_20G, &button_20g_held);
+    update_input_state(state, BUTTON_INVIS, GAMEPAD_INVIS, &button_invis_held);
 
     update_input_state(state, BUTTON_MYSTERY, GAMEPAD_MYSTERY, &button_mystery_held);
 }
@@ -249,6 +255,7 @@ void write_piece(const live_block_t piece) {
                 field[piece.x + i][piece.y + j + 1].type = piece.type;
                 field[piece.x + i][piece.y + j + 1].lock_param = 1.0f;
                 field[piece.x + i][piece.y + j + 1].lock_status = LOCK_LOCKED;
+                field[piece.x + i][piece.y + j + 1].locked_at = game_details.total_frames;
             }
         }
     }
@@ -488,6 +495,11 @@ void generate_first_piece() {
     next_piece = result;
 }
 
+int get_gravity() {
+    if (mode_20g) return 5120;
+    return current_timing->g;
+}
+
 void generate_next_piece() {
     block_type_t result = generate_piece();
     int tries = 1;
@@ -532,8 +544,8 @@ void generate_next_piece() {
         else play_sound(&irs_sound);
     }
 
-    if (current_timing->g == 5120) {
-        for (int i = 0; i < 20; i++) try_descend();
+    if (get_gravity() == 5120) {
+        while (!piece_grounded()) try_descend();
         play_sound(&pieceland_sound);
     }
 }
@@ -544,7 +556,7 @@ void gray_line(const int row) {
     }
 }
 
-void render_raw_block(const int col, const int row, const block_type_t block, const lock_status_t lockStatus, const float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow) {
+void render_raw_block(const int col, const int row, const block_type_t block, const lock_status_t lockStatus, const float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow, int locked_at) {
     SDL_FRect src = {0};
     const SDL_FRect dest = {
         .x = FIELD_X_OFFSET + ((float)col * 16.0f),
@@ -593,10 +605,14 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     float moda = 1.0f;
     switch(lockStatus) {
         case LOCK_LOCKED:
+            if (mode_invis == 2 && game_state != STATE_GAMEOVER) return;
+            if (mode_invis == 1 && game_details.total_frames - locked_at > (5*60) && game_state != STATE_GAMEOVER) return;
             mod = 0.6f;
             moda = 0.8f;
             if (game_state == STATE_GAMEOVER && game_state_ctr < 0) {
                 moda = lerp(0.8f, 0.0f, ((float)-game_state_ctr/100.0f));
+            } else if (mode_invis == 1 && game_details.total_frames - locked_at > (4*60) && game_state != STATE_GAMEOVER) {
+                moda = lerp(0.8f, 0.0f, (float)(game_details.total_frames - locked_at - 4*60)/60.0f);
             }
             break;
         case LOCK_FLASH:
@@ -626,6 +642,7 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     if (moda <= 0.0f) return;
     SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
+    if (mode_invis != 0 && game_state != STATE_GAMEOVER) return;
     SDL_SetRenderDrawColor(renderer, 161, 161, 151, 255);
     if(voidToLeft) {
         SDL_RenderLine(renderer, dest.x, dest.y, dest.x, dest.y + dest.h - 1);
@@ -651,52 +668,52 @@ void render_field_block(const int x, const int y) {
     const bool voidToRight = x != 9 && field[x+1][y].type == BLOCK_VOID;
     const bool voidAbove = y != 1 && field[x][y-1].type == BLOCK_VOID;
     const bool voidBelow = y != 20 && field[x][y+1].type == BLOCK_VOID;
-    render_raw_block(x, y-1, field[x][y].type, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow);
+    render_raw_block(x, y-1, field[x][y].type, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow, field[x][y].locked_at);
 }
 
 void render_next_block() {
     switch(next_piece) {
         case BLOCK_I:
-            render_raw_block(3, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(6, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(6, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 0);
             break;
         case BLOCK_L:
-            render_raw_block(3, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(3, -3, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(3, -3, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 0);
             break;
         case BLOCK_O:
-            render_raw_block(4, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 0);
             break;
         case BLOCK_Z:
-            render_raw_block(3, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 0);
             break;
         case BLOCK_T:
-            render_raw_block(3, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -3, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 0);
             break;
         case BLOCK_J:
-            render_raw_block(3, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -3, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(3, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -3, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 0);
             break;
         case BLOCK_S:
-            render_raw_block(4, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(5, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(3, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false);
-            render_raw_block(4, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false);
+            render_raw_block(4, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(5, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(3, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 0);
             break;
         default:
             return;
@@ -710,7 +727,7 @@ void render_current_block() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
-                render_raw_block(current_piece.x + i, current_piece.y + j, current_piece.type, current_piece.lock_status, current_piece.lock_param, false, false, false, false);
+                render_raw_block(current_piece.x + i, current_piece.y + j, current_piece.type, current_piece.lock_status, current_piece.lock_param, false, false, false, false, game_details.total_frames);
             }
         }
     }
@@ -729,7 +746,7 @@ void render_tls() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
-                render_raw_block(active.x + i, active.y + j, active.type, LOCK_GHOST, active.lock_param, false, false, false, false);
+                render_raw_block(active.x + i, active.y + j, active.type, LOCK_GHOST, active.lock_param, false, false, false, false, game_details.total_frames);
             }
         }
     }
@@ -751,11 +768,19 @@ void toggle_details() {
 void render_details() {
     if (!details) return;
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? 0.5f : 1.0f);
-    SDL_FRect dst = {.x = FIELD_X_OFFSET+(12*16), .y = FIELD_Y_OFFSET, .w = 16.0f * 12.0f, .h = 16.0f * 20.0f};
+    SDL_FRect dst = {.x = FIELD_X_OFFSET+(12*16), .y = 0.0f, .w = 16.0f * 12.0f, .h = 16.0f * 26.0f};
     SDL_RenderFillRect(renderer, &dst);
 
     SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1);
-    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+4),   "SECTION            TIME");
+
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 4,  "LEVEL  GRAVITY  LOCKDEL");
+    if (get_gravity() < 256) SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 14, " %04d   %05.3fG      %02df", level, (float)get_gravity()/256.0f, current_timing->lock);
+    else SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 14, " %04d      %2dG      %02df", level, get_gravity()/256, current_timing->lock);
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 30, "DAS  ARE  LN-ARE  CLEAR");
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 40, "%2df  %2df     %2df    %2df", current_timing->das, current_timing->are, current_timing->line_are, current_timing->clear);
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 56, "[%6s] [%3s] [%6s]", TI_ARS ? "Ti-ARS" : "TAP   ", mode_20g ? "20G" : "---", mode_invis == 0 ? "NORMAL" : mode_invis == 1 ? "FADING" : "INVISI");
+
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+4), "SECTION            TIME");
 
     // Room for 13 sections.
     int i = 0;
@@ -766,13 +791,13 @@ void render_details() {
         int lap_cs = game_details.splits[i].lap_frames;
         int lap_seconds = lap_cs / 60;
         int lap_minutes = lap_seconds / 60;
-        lap_cs = ((float)lap_cs/60.0f)*100;
+        lap_cs = (int)((float)lap_cs/60.0f)*100;
         lap_cs %= 100;
         lap_seconds %= 60;
         int split_cs = game_details.splits[i].split_frames;
         int split_seconds = split_cs / 60;
         int split_minutes = split_seconds / 60;
-        split_cs = ((float)split_cs/60.0f)*100;
+        split_cs = (int)((float)split_cs/60.0f)*100;
         split_cs %= 100;
         split_seconds %= 60;
 
@@ -780,15 +805,16 @@ void render_details() {
         SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+32) + (float)(j*10),  "          (S) %03d:%02d.%02d", split_minutes, split_seconds, split_cs);
     }
 
-
     int total_cs = game_details.total_frames;
     int total_seconds = total_cs / 60;
     int total_minutes = total_seconds / 60;
-    total_cs = ((float)total_cs/60.0f)*100;
+    total_cs = (int)((float)total_cs/60.0f)*100;
     total_cs %= 100;
     total_seconds %= 60;
 
-    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+310), "TOTAL         %03d:%02d.%02d", total_minutes, total_seconds, total_cs);
+    SDL_SetRenderScale(renderer, (float)RENDER_SCALE*2.0f, (float)RENDER_SCALE*2.0f);
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+24)/2, (FIELD_Y_OFFSET+310)/2, "%03d:%02d.%02d", total_minutes, total_seconds, total_cs);
+    SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
 }
 
 void get_music_data(section_music_t **section) {
@@ -929,7 +955,7 @@ void render_game() {
     // A bit of info.
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
     SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-    SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)current_timing->g/256.0f, current_timing->das, current_timing->lock, TI_ARS ? "Ti " : "TAP");
+    if (!details) SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)get_gravity()/256.0f, current_timing->das, current_timing->lock, TI_ARS ? "Ti " : "TAP");
 
     if (game_state == STATE_WAIT) {
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (4.0f * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
@@ -949,16 +975,19 @@ void render_game() {
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.0f * 16.0f)) * 2 , "- %s: Scale up", SDL_GetScancodeName(BUTTON_SCALE_UP));
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (11.5f * 16.0f)) * 2 , "- %s: Mute/unmute", SDL_GetScancodeName(BUTTON_MUTE));
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.0f * 16.0f)) * 2 , "- %s: Toggle background transparency", SDL_GetScancodeName(BUTTON_TOGGLE_TRANSPARENCY));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (12.5f * 16.0f)) * 2 , "- %s: Toggle details pane", SDL_GetScancodeName(BUTTON_DETAILS));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.0f * 16.0f)) * 2 , "- %s: Toggle 20G", SDL_GetScancodeName(BUTTON_20G));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.5f * 16.0f)) * 2 , "- %s: Toggle normal/fading/invisible", SDL_GetScancodeName(BUTTON_INVIS));
 
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.0f * 16.0f)) * 2 , "Gamepad:");
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (13.5f * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetGamepadStringForButton(GAMEPAD_LEFT), SDL_GetGamepadStringForButton(GAMEPAD_RIGHT));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.0f * 16.0f)) * 2 , "- %s: Sonic drop", SDL_GetGamepadStringForButton(GAMEPAD_SONIC_DROP));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.5f * 16.0f)) * 2 , "- %s: Soft drop", SDL_GetGamepadStringForButton(GAMEPAD_SOFT_DROP));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.0f * 16.0f)) * 2 , "- %s: Hard drop", SDL_GetGamepadStringForButton(GAMEPAD_HARD_DROP));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.5f * 16.0f)) * 2 , "- %s/%s: Rotate CCW", SDL_GetGamepadStringForButton(GAMEPAD_CCW_1), SDL_GetGamepadStringForButton(GAMEPAD_CCW_2));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.0f * 16.0f)) * 2 , "- %s: Rotate CW", SDL_GetGamepadStringForButton(GAMEPAD_CW));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.5f * 16.0f)) * 2 , "- %s: Start game", SDL_GetGamepadStringForButton(GAMEPAD_START));
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (17.0f * 16.0f)) * 2 , "- %s: Reset game", SDL_GetGamepadStringForButton(GAMEPAD_RESET));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (14.5f * 16.0f)) * 2 , "Gamepad:");
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.0f * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetGamepadStringForButton(GAMEPAD_LEFT), SDL_GetGamepadStringForButton(GAMEPAD_RIGHT));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (15.5f * 16.0f)) * 2 , "- %s: Sonic drop", SDL_GetGamepadStringForButton(GAMEPAD_SONIC_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.0f * 16.0f)) * 2 , "- %s: Soft drop", SDL_GetGamepadStringForButton(GAMEPAD_SOFT_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (16.5f * 16.0f)) * 2 , "- %s: Hard drop", SDL_GetGamepadStringForButton(GAMEPAD_HARD_DROP));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (17.0f * 16.0f)) * 2 , "- %s/%s: Rotate CCW", SDL_GetGamepadStringForButton(GAMEPAD_CCW_1), SDL_GetGamepadStringForButton(GAMEPAD_CCW_2));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (17.5f * 16.0f)) * 2 , "- %s: Rotate CW", SDL_GetGamepadStringForButton(GAMEPAD_CW));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (18.0f * 16.0f)) * 2 , "- %s: Start game", SDL_GetGamepadStringForButton(GAMEPAD_START));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (18.5f * 16.0f)) * 2 , "- %s: Reset game", SDL_GetGamepadStringForButton(GAMEPAD_RESET));
     }
 
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
@@ -971,9 +1000,6 @@ void do_reset() {
     memset(field, 0, sizeof field);
     game_state = STATE_WAIT;
     game_state_ctr = 60;
-    current_timing = &game_timing[0];
-    accumulated_g = 0;
-    level = 0;
     lines_cleared = 0;
     border_r = 0.1f;
     border_g = 0.1f;
@@ -985,7 +1011,7 @@ void do_reset() {
 
 void update_details() {
     game_details.total_frames++;
-    if (level >= (game_details.current_section + 1) * 100) game_details.current_section++;
+    if (level >= (game_details.current_section + 1) * 100 && game_details.current_section < 4095) game_details.current_section++;
     game_details.splits[game_details.current_section].lap_frames++;
     game_details.splits[game_details.current_section].split_frames = game_details.total_frames;
 }
@@ -1003,8 +1029,17 @@ bool state_machine_tick() {
     // Mute?
     if (IS_JUST_HELD(button_mute_held)) MUTED = !MUTED;
 
-    // Mute?
+    // Transparency?
     if (IS_JUST_HELD(button_toggle_transparency_held)) TRANSPARENCY = !TRANSPARENCY;
+
+    // 20G?
+    if (IS_JUST_HELD(button_20g_held)) mode_20g = !mode_20g;
+
+    // Invis?
+    if (IS_JUST_HELD(button_invis_held)) {
+        mode_invis++;
+        mode_invis %= 3;
+    }
 
     // ARS/Ti ARS?
     if (IS_JUST_HELD(button_toggle_rotation_system_held)) TI_ARS = !TI_ARS;
@@ -1033,6 +1068,8 @@ bool state_machine_tick() {
             game_state = STATE_BEGIN;
             game_state_ctr = 60;
             play_sound(&ready_sound);
+            current_timing = &game_timing[0];
+            level = 0;
         }
     } else if (game_state == STATE_BEGIN) {
         game_state_ctr--;
@@ -1089,10 +1126,10 @@ bool state_machine_tick() {
         }
 
         // Gravity.
-        accumulated_g += current_timing->g;
+        accumulated_g += get_gravity();
 
         // Soft drop.
-        if (current_timing->g < 256 && IS_HELD(button_d_held)) accumulated_g = 256;
+        if (get_gravity() < 256 && IS_HELD(button_d_held)) accumulated_g = 256;
 
         // Sonic drop.
         if (IS_JUST_HELD(button_u_held) || IS_JUST_HELD(button_hard_drop_held) || ((IS_HELD(button_u_held) || IS_HELD(button_hard_drop_held)) && game_state_ctr > 0)) accumulated_g += 20*256;
@@ -1100,9 +1137,16 @@ bool state_machine_tick() {
         // Apply gravity.
         const int start_y = current_piece.y;
         if (accumulated_g >= 256) {
-            while (accumulated_g >= 256) {
-                try_descend();
-                accumulated_g -= 256;
+            if (accumulated_g >= 20*256) {
+                while (!piece_grounded()) {
+                    try_descend();
+                }
+                accumulated_g = 0;
+            } else {
+                while (accumulated_g >= 256) {
+                    try_descend();
+                    accumulated_g -= 256;
+                }
             }
             if (start_y != current_piece.y && !(current_piece.floor_kicked && current_piece.lock_delay == 0)) {
                 current_piece.lock_param = 1.0f;

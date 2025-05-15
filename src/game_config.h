@@ -23,6 +23,8 @@ int32_t BUTTON_MUTE = SDL_SCANCODE_P;
 int32_t BUTTON_MYSTERY = SDL_SCANCODE_KP_MINUS;
 int32_t BUTTON_TOGGLE_TRANSPARENCY = SDL_SCANCODE_T;
 int32_t BUTTON_DETAILS = SDL_SCANCODE_F1;
+int32_t BUTTON_20G = SDL_SCANCODE_F2;
+int32_t BUTTON_INVIS = SDL_SCANCODE_F3;
 
 int32_t GAMEPAD_LEFT = SDL_GAMEPAD_BUTTON_DPAD_LEFT;
 int32_t GAMEPAD_RIGHT = SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
@@ -42,6 +44,8 @@ int32_t GAMEPAD_MUTE = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MYSTERY = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_TOGGLE_TRANSPARENCY = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_DETAILS = SDL_GAMEPAD_BUTTON_INVALID;
+int32_t GAMEPAD_20G = SDL_GAMEPAD_BUTTON_INVALID;
+int32_t GAMEPAD_INVIS = SDL_GAMEPAD_BUTTON_INVALID;
 
 int RENDER_SCALE = 2;
 bool TRANSPARENCY = true;
@@ -217,6 +221,8 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "mystery") == 0) BUTTON_MYSTERY = s;
         if (SDL_strcasecmp(name, "toggle_transparency") == 0) BUTTON_TOGGLE_TRANSPARENCY = s;
         if (SDL_strcasecmp(name, "toggle_details") == 0) BUTTON_DETAILS = s;
+        if (SDL_strcasecmp(name, "toggle_20g") == 0) BUTTON_20G = s;
+        if (SDL_strcasecmp(name, "toggle_invis") == 0) BUTTON_INVIS = s;
     }
 
     if (SDL_strcasecmp(section, "gamepad") == 0) {
@@ -239,6 +245,8 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "mystery") == 0) GAMEPAD_MYSTERY = s;
         if (SDL_strcasecmp(name, "toggle_transparency") == 0) GAMEPAD_TOGGLE_TRANSPARENCY = s;
         if (SDL_strcasecmp(name, "toggle_details") == 0) GAMEPAD_DETAILS = s;
+        if (SDL_strcasecmp(name, "toggle_20g") == 0) GAMEPAD_20G = s;
+        if (SDL_strcasecmp(name, "toggle_invis") == 0) GAMEPAD_INVIS = s;
     }
 
     if (SDL_strcasecmp(section, "music") == 0) {
