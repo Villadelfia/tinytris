@@ -43,7 +43,7 @@ float border_b = 0.9f;
 float border_r_old = 0.1f;
 float border_g_old = 0.1f;
 float border_b_old = 0.9f;
-int level = 90;
+int level = 0;
 timing_t *current_timing;
 int accumulated_g = 0;
 int lines_cleared = 0;
