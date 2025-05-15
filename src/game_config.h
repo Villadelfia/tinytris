@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_stdinc.h>
 #include <ini.h>
 
 int32_t BUTTON_LEFT = SDL_SCANCODE_A;
@@ -38,6 +39,121 @@ int32_t GAMEPAD_TOGGLE_ROTATION_SYSTEM = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MUTE = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MYSTERY = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_TOGGLE_TRANSPARENCY = SDL_GAMEPAD_BUTTON_INVALID;
+
+typedef struct {
+    uint8_t *wave_data;
+    uint32_t wave_data_len;
+} wave_data_t;
+typedef struct {
+    int32_t level_start;
+    wave_data_t head;
+    wave_data_t body;
+} section_music_t;
+
+SDL_AudioSpec MUSIC_SPEC;
+int32_t SECTION_COUNT = 0;
+section_music_t *SECTIONS = NULL;
+section_music_t TITLE_MUSIC = {0};
+
+static inline bool load_song(const char *file, uint8_t **head_data, uint32_t *head_data_len, uint8_t **body_data, uint32_t *body_data_len) {
+    // Build the new strings.
+    const size_t len = SDL_strlen(file) + 20;
+    char *with_h_wav = calloc(len, sizeof(char));
+    char *with_b_wav = calloc(len, sizeof(char));
+    char *with_wav = calloc(len, sizeof(char));
+    SDL_strlcpy(with_h_wav, "data/", len);
+    SDL_strlcpy(with_b_wav, "data/", len);
+    SDL_strlcpy(with_wav, "data/", len);
+    SDL_strlcat(with_h_wav, file, len);
+    SDL_strlcat(with_b_wav, file, len);
+    SDL_strlcat(with_wav, file, len);
+    SDL_strlcat(with_h_wav, "_h.wav", len);
+    SDL_strlcat(with_b_wav, "_b.wav", len);
+    SDL_strlcat(with_wav, ".wav", len);
+
+    // Try and load all possible wavs.
+    uint8_t *with_h_data;
+    uint32_t with_h_data_len;
+    bool with_h_data_should_free = true;
+    uint8_t *with_b_data;
+    uint32_t with_b_data_len;
+    bool with_b_data_should_free = true;
+    uint8_t *with_wav_data;
+    uint32_t with_wav_data_len;
+    bool with_wav_data_should_free = true;
+    if (!SDL_LoadWAV(with_h_wav, &MUSIC_SPEC, &with_h_data, &with_h_data_len)) {
+        with_h_data = NULL;
+        with_h_data_len = 0;
+        with_h_data_should_free = false;
+    }
+    if (!SDL_LoadWAV(with_b_wav, &MUSIC_SPEC, &with_b_data, &with_b_data_len)) {
+        with_b_data = NULL;
+        with_b_data_len = 0;
+        with_b_data_should_free = false;
+    }
+    if (!SDL_LoadWAV(with_wav, &MUSIC_SPEC, &with_wav_data, &with_wav_data_len)) {
+        with_wav_data = NULL;
+        with_wav_data_len = 0;
+        with_wav_data_should_free = false;
+    }
+
+    // Try and assign these to slots.
+    bool retval = false;
+    if (with_h_data != NULL && with_b_data != NULL) {
+        // Do we have both head and body?
+        // Mark as used.
+        with_h_data_should_free = false;
+        with_b_data_should_free = false;
+
+        // Success!
+        retval = true;
+
+        // Store the data.
+        *head_data = with_h_data;
+        *head_data_len = with_h_data_len;
+        *body_data = with_b_data;
+        *body_data_len = with_b_data_len;
+    } else if (with_wav_data != NULL) {
+        // Do we have a bare .wav?
+        // Mark as used.
+        with_wav_data_should_free = false;
+
+        // Success!
+        retval = true;
+
+        // Store the data.
+        *head_data = with_wav_data;
+        *head_data_len = with_wav_data_len;
+        *body_data = with_wav_data;
+        *body_data_len = with_wav_data_len;
+    } else if (with_h_data != NULL || with_b_data != NULL) {
+        // Last ditch attempt at doing something useful...
+        // Just store whatever we found as both head and body.
+        retval = true;
+        if (with_h_data != NULL) {
+            with_h_data_should_free = false;
+            *head_data = with_h_data;
+            *head_data_len = with_h_data_len;
+            *body_data = with_h_data;
+            *body_data_len = with_h_data_len;
+        } else {
+            with_b_data_should_free = false;
+            *head_data = with_b_data;
+            *head_data_len = with_b_data_len;
+            *body_data = with_b_data;
+            *body_data_len = with_b_data_len;
+        }
+    }
+
+    // Free the new strings and buffers that ended up unused.
+    SDL_free(with_wav);
+    SDL_free(with_b_wav);
+    SDL_free(with_h_wav);
+    if (with_h_data_should_free) SDL_free(with_h_data);
+    if (with_b_data_should_free) SDL_free(with_b_data);
+    if (with_wav_data_should_free) SDL_free(with_wav_data);
+    return retval;
+}
 
 static int parse_config(void* user, const char* section, const char* name, const char* value) {
     if (SDL_strcasecmp(section, "keyboard") == 0) {
@@ -82,9 +198,44 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "toggle_transparency") == 0) GAMEPAD_TOGGLE_TRANSPARENCY = s;
     }
 
+    if (SDL_strcasecmp(section, "music") == 0) {
+        if (SDL_strcasecmp(name, "menu") == 0) {
+            // Load menu...
+            if (load_song(value, &TITLE_MUSIC.head.wave_data, &TITLE_MUSIC.head.wave_data_len, &TITLE_MUSIC.body.wave_data, &TITLE_MUSIC.body.wave_data_len)) {
+                TITLE_MUSIC.level_start = -1;
+            }
+        } else {
+            // Load section music...
+            char *end;
+            const long level_start = SDL_strtol(name, &end, 10);
+            if (end == name) return 1;
+            section_music_t s = {0};
+            s.level_start = level_start;
+            if (load_song(value, &s.head.wave_data, &s.head.wave_data_len, &s.body.wave_data, &s.body.wave_data_len)) {
+                SECTION_COUNT++;
+                SECTIONS = SDL_realloc(SECTIONS, SECTION_COUNT * sizeof(section_music_t));
+                SDL_memcpy(SECTIONS + (SECTION_COUNT-1), &s, sizeof(section_music_t));
+            }
+        }
+    }
+
     return 1;
+}
+
+static int SDLCALL compare_section(const void *a, const void *b) {
+    const section_music_t *A = (const section_music_t *)a;
+    const section_music_t *B = (const section_music_t *)b;
+
+    if (A->level_start < B->level_start) {
+        return -1;
+    } else if (B->level_start < A->level_start) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 static inline void load_config() {
     ini_parse("config.ini", parse_config, NULL);
+    if (SECTIONS != NULL) SDL_qsort(SECTIONS, SECTION_COUNT, sizeof(section_music_t), compare_section);
 }
