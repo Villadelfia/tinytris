@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_stdinc.h>
 #include <ini.h>
+#include "stb_vorbis.h"
 
 int32_t BUTTON_LEFT = SDL_SCANCODE_A;
 int32_t BUTTON_RIGHT = SDL_SCANCODE_D;

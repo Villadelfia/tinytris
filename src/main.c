@@ -9,6 +9,7 @@
 #include "game_data.h"
 #include "game_config.h"
 #include "input_utils.h"
+#include "stb_vorbis.h"
 
 // SDL stuff.
 static SDL_Window *window = NULL;
@@ -1121,12 +1122,12 @@ SDL_Texture *load_image(const char* file, void* fallback, const size_t fallback_
     return target;
 }
 
-void load_sound(sound_t *target, const char* file, void* fallback, const size_t fallback_size) {
+void load_sound(sound_t *target, const char* file, const void* fallback, const size_t fallback_size) {
     int channels, sample_rate;
     int16_t *data;
     int32_t data_len = stb_vorbis_decode_filename(file, &channels, &sample_rate, &data);
     if (data_len == -1 && fallback != NULL) {
-        data_len = stb_vorbis_decode_memory(fallback, fallback_size, &channels, &sample_rate, &data);
+        data_len = stb_vorbis_decode_memory(fallback, (int)fallback_size, &channels, &sample_rate, &data);
     }
 
     if (data_len == -1) {
