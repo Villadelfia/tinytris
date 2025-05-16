@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum {
     BLOCK_VOID,
@@ -27,6 +28,8 @@ typedef struct {
     lock_status_t lock_status;
     float lock_param;
     int locked_at;
+    bool fading;
+    float fade_state;
 } block_t;
 
 typedef struct {
@@ -69,11 +72,12 @@ typedef enum {
 } game_state_t;
 
 typedef struct {
-    int level;
+    int32_t level;
     int g;
     int are;
     int line_are;
     int das;
     int lock;
     int clear;
+    int fade;
 } timing_t;

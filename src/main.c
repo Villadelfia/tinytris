@@ -256,6 +256,8 @@ void write_piece(const live_block_t piece) {
                 field[piece.x + i][piece.y + j + 1].lock_param = 1.0f;
                 field[piece.x + i][piece.y + j + 1].lock_status = LOCK_LOCKED;
                 field[piece.x + i][piece.y + j + 1].locked_at = game_details.total_frames;
+                field[piece.x + i][piece.y + j + 1].fading = false;
+                field[piece.x + i][piece.y + j + 1].fade_state = 1.0f;
             }
         }
     }
@@ -556,7 +558,7 @@ void gray_line(const int row) {
     }
 }
 
-void render_raw_block(const int col, const int row, const block_type_t block, const lock_status_t lockStatus, const float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow, int locked_at) {
+void render_raw_block(const int col, const int row, const block_type_t block, const lock_status_t lockStatus, const float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow, float fade_state) {
     SDL_FRect src = {0};
     const SDL_FRect dest = {
         .x = FIELD_X_OFFSET + ((float)col * 16.0f),
@@ -606,14 +608,10 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     switch(lockStatus) {
         case LOCK_LOCKED:
             if (mode_invis == 2 && game_state != STATE_GAMEOVER) return;
-            if (mode_invis == 1 && game_details.total_frames - locked_at > (5*60) && game_state != STATE_GAMEOVER) return;
+            if (fade_state == 0.0f && game_state != STATE_GAMEOVER) return;
             mod = 0.6f;
-            moda = 0.8f;
-            if (game_state == STATE_GAMEOVER && game_state_ctr < 0) {
-                moda = lerp(0.8f, 0.0f, ((float)-game_state_ctr/100.0f));
-            } else if (mode_invis == 1 && game_details.total_frames - locked_at > (4*60) && game_state != STATE_GAMEOVER) {
-                moda = lerp(0.8f, 0.0f, (float)(game_details.total_frames - locked_at - 4*60)/60.0f);
-            }
+            moda = 0.8f * fade_state;
+            if (game_state == STATE_GAMEOVER && game_state_ctr < 0) moda = lerp(0.8f, 0.0f, ((float)-game_state_ctr/100.0f));
             break;
         case LOCK_FLASH:
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 192);
@@ -642,7 +640,7 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     if (moda <= 0.0f) return;
     SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
-    if (mode_invis != 0 && game_state != STATE_GAMEOVER) return;
+    if ((current_timing->fade != 0 || mode_invis != 0) && game_state != STATE_GAMEOVER) return;
     SDL_SetRenderDrawColor(renderer, 161, 161, 151, 255);
     if(voidToLeft) {
         SDL_RenderLine(renderer, dest.x, dest.y, dest.x, dest.y + dest.h - 1);
@@ -662,58 +660,77 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     }
 }
 
+float update_and_get_fade_state(block_t *block) {
+    if (mode_invis == 0 && current_timing->fade == 0) {
+        block->fade_state = 1.0f;
+        block->fading = false;
+    } else if (mode_invis == 2 || current_timing->fade == 1) {
+        block->fade_state = 0.0f;
+        block->fading = true;
+    } else if (mode_invis == 1 || current_timing->fade > 1) {
+        int delay = 256;
+        if (current_timing->fade > 1 && current_timing->fade < 256) delay = current_timing->fade;
+        if (game_details.total_frames - block->locked_at > delay) block->fading = true;
+    }
+
+    if (block->fading) block->fade_state -= 1.0f/FADE_TIME;
+    if (block->fade_state < 0) block->fade_state = 0.0f;
+
+    return block->fade_state;
+}
+
 void render_field_block(const int x, const int y) {
     if(x < 0 || x > 9 || y < 1 || y > 20) return;
     const bool voidToLeft = x != 0 && field[x-1][y].type == BLOCK_VOID;
     const bool voidToRight = x != 9 && field[x+1][y].type == BLOCK_VOID;
     const bool voidAbove = y != 1 && field[x][y-1].type == BLOCK_VOID;
     const bool voidBelow = y != 20 && field[x][y+1].type == BLOCK_VOID;
-    render_raw_block(x, y-1, field[x][y].type, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow, field[x][y].locked_at);
+    render_raw_block(x, y-1, field[x][y].type, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow, update_and_get_fade_state(&field[x][y]));
 }
 
 void render_next_block() {
     switch(next_piece) {
         case BLOCK_I:
-            render_raw_block(3, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(6, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(3, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(6, -4, BLOCK_I, LOCK_NEXT, 1.0f, false, false, false, false, 1);
             break;
         case BLOCK_L:
-            render_raw_block(3, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(3, -3, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(3, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -4, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(3, -3, BLOCK_L, LOCK_NEXT, 1.0f, false, false, false, false, 1);
             break;
         case BLOCK_O:
-            render_raw_block(4, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -4, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -3, BLOCK_O, LOCK_NEXT, 1.0f, false, false, false, false, 1);
             break;
         case BLOCK_Z:
-            render_raw_block(3, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(3, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -4, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -3, BLOCK_Z, LOCK_NEXT, 1.0f, false, false, false, false, 1);
             break;
         case BLOCK_T:
-            render_raw_block(3, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -3, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(3, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -4, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -3, BLOCK_T, LOCK_NEXT, 1.0f, false, false, false, false, 1);
             break;
         case BLOCK_J:
-            render_raw_block(3, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -3, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(3, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -4, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -3, BLOCK_J, LOCK_NEXT, 1.0f, false, false, false, false, 1);
             break;
         case BLOCK_S:
-            render_raw_block(4, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(5, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(3, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 0);
-            render_raw_block(4, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 0);
+            render_raw_block(4, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(5, -4, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(3, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -3, BLOCK_S, LOCK_NEXT, 1.0f, false, false, false, false, 1);
             break;
         default:
             return;
@@ -727,7 +744,7 @@ void render_current_block() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
-                render_raw_block(current_piece.x + i, current_piece.y + j, current_piece.type, current_piece.lock_status, current_piece.lock_param, false, false, false, false, game_details.total_frames);
+                render_raw_block(current_piece.x + i, current_piece.y + j, current_piece.type, current_piece.lock_status, current_piece.lock_param, false, false, false, false, 1);
             }
         }
     }
@@ -746,7 +763,7 @@ void render_tls() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
-                render_raw_block(active.x + i, active.y + j, active.type, LOCK_GHOST, active.lock_param, false, false, false, false, game_details.total_frames);
+                render_raw_block(active.x + i, active.y + j, active.type, LOCK_GHOST, active.lock_param, false, false, false, false, 1);
             }
         }
     }

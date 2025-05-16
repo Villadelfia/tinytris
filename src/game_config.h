@@ -4,6 +4,8 @@
 #include <SDL3/SDL_stdinc.h>
 #include <ini.h>
 #include "stb_vorbis.h"
+#include "game_types.h"
+#include "game_data.h"
 
 int32_t BUTTON_LEFT = SDL_SCANCODE_A;
 int32_t BUTTON_RIGHT = SDL_SCANCODE_D;
@@ -53,6 +55,7 @@ bool MUTED = false;
 bool TI_ARS = true;
 float BGM_VOLUME = 0.6f;
 float SFX_VOLUME = 1.0f;
+float FADE_TIME = 60.0f;
 
 typedef struct {
     int16_t *wave_data;
@@ -68,6 +71,8 @@ typedef struct {
 int32_t SECTION_COUNT = 0;
 section_music_t *SECTIONS = NULL;
 section_music_t TITLE_MUSIC = {0};
+size_t game_timings_set = 0;
+timing_t game_timing[1024] = {0};
 
 static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16_t **head_data, uint32_t *head_data_len, SDL_AudioSpec *body_format, int16_t **body_data, uint32_t *body_data_len) {
     // Build the new strings.
@@ -281,6 +286,44 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "tgm3_kicks") == 0) TI_ARS = v != 0;
         if (SDL_strcasecmp(name, "bgm_volume") == 0) BGM_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "sfx_volume") == 0) SFX_VOLUME = (float)v/100.0f;
+        if (SDL_strcasecmp(name, "fade_time") == 0) FADE_TIME = (float)v;
+    }
+
+    if (SDL_strcasecmp(section, "timing") == 0) {
+        if (game_timings_set == 1022) return 1;
+        char *end = NULL, *temp = NULL;
+        const long level = SDL_strtol(name, &end, 10);
+        if (end == name) return 1;
+        const long g = SDL_strtol(value, &end, 10);
+        if (end == value) return 1;
+        temp = end;
+        const long are = SDL_strtol(temp, &end, 10);
+        if (end == temp) return 1;
+        temp = end;
+        const long line_are = SDL_strtol(temp, &end, 10);
+        if (end == temp) return 1;
+        temp = end;
+        const long das = SDL_strtol(temp, &end, 10);
+        if (end == temp) return 1;
+        temp = end;
+        const long lock = SDL_strtol(temp, &end, 10);
+        if (end == temp) return 1;
+        temp = end;
+        const long clear = SDL_strtol(temp, &end, 10);
+        if (end == temp) return 1;
+        temp = end;
+        const long fade = SDL_strtol(temp, &end, 10);
+        if (end == temp) return 1;
+
+        game_timing[game_timings_set].level = level;
+        game_timing[game_timings_set].g = g;
+        game_timing[game_timings_set].are = are;
+        game_timing[game_timings_set].line_are = line_are;
+        game_timing[game_timings_set].das = das;
+        game_timing[game_timings_set].lock = lock;
+        game_timing[game_timings_set].clear = clear;
+        game_timing[game_timings_set].fade = fade;
+        game_timings_set++;
     }
 
     return 1;
@@ -299,7 +342,23 @@ static int SDLCALL compare_section(const void *a, const void *b) {
     }
 }
 
+static int SDLCALL compare_timing(const void *a, const void *b) {
+    const timing_t *A = (const timing_t *)a;
+    const timing_t *B = (const timing_t *)b;
+
+    if (A->level < B->level) {
+        return -1;
+    } else if (B->level < A->level) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 static inline void load_config() {
+    for (int i = 0; i < 1024; ++i) game_timing[i] = (timing_t){INT32_MAX, -1, -1, -1, -1, -1, -1, -1};
     ini_parse("config.ini", parse_config, NULL);
     if (SECTIONS != NULL) SDL_qsort(SECTIONS, SECTION_COUNT, sizeof(section_music_t), compare_section);
+    if (game_timings_set == 0) SDL_memcpy(game_timing, default_game_timing, sizeof(default_game_timing));
+    else SDL_qsort(game_timing, 1024, sizeof(timing_t), compare_timing);
 }
