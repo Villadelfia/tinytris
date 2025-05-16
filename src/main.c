@@ -31,6 +31,8 @@ typedef struct {
 // Global data.
 block_t field[10][21] = {0};
 block_type_t history[4] = {0};
+block_type_t bag[35] = {0};
+int histogram[7] = {0};
 block_type_t next_piece;
 live_block_t current_piece;
 game_state_t game_state = STATE_WAIT;
@@ -479,6 +481,11 @@ void collapse_clears() {
     }
 }
 
+int get_gravity() {
+    if (mode_20g) return 5120;
+    return current_timing->g;
+}
+
 block_type_t generate_piece() {
     uint8_t piece = xoroshiro_next() % 8;
     while(piece > 6) piece = xoroshiro_next() % 8;
@@ -489,6 +496,16 @@ void generate_first_piece() {
     history[1] = BLOCK_Z;
     history[2] = BLOCK_S;
     history[3] = BLOCK_S;
+    for (int i = 0; i < 35; i++) bag[i] = (i/5)+2;
+    SDL_Log("%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d", bag[0], bag[1], bag[2], bag[3], bag[4], bag[5], bag[6], bag[7], bag[8], bag[9], bag[10], bag[11], bag[12], bag[13], bag[14], bag[15], bag[16], bag[17], bag[18], bag[19], bag[20], bag[21], bag[22], bag[23], bag[24], bag[25], bag[26], bag[27], bag[28], bag[29], bag[30], bag[31], bag[32], bag[33], bag[34]);
+
+    histogram[0] = 4;
+    histogram[1] = 4;
+    histogram[2] = 4;
+    histogram[3] = 4;
+    histogram[4] = 4;
+    histogram[5] = 4;
+    histogram[6] = 4;
     block_type_t result = generate_piece();
     while(result == BLOCK_S || result == BLOCK_Z || result == BLOCK_O) result = generate_piece();
     history[0] = result;
@@ -497,25 +514,75 @@ void generate_first_piece() {
     next_piece = result;
 }
 
-int get_gravity() {
-    if (mode_20g) return 5120;
-    return current_timing->g;
-}
-
 void generate_next_piece() {
-    block_type_t result = generate_piece();
-    int tries = 1;
-    while(tries++ < 6) {
-        if(result != history[0] && result != history[1] && result != history[2] && result != history[3]) {
-            break;
-        } else {
-            result = generate_piece();
+    block_type_t result = BLOCK_VOID;
+    if (TI_RNG) {
+        block_type_t droughted_piece = BLOCK_VOID;
+        int bagpos = 0;
+        int longest_drought = 0;
+
+        for(int i = 0; i < 6; i++) {
+            // Pick a piece from the bag.
+            bagpos = (int)(uint8_t)xoroshiro_next() % 64;
+            while (bagpos > 34) bagpos = (int)(uint8_t)xoroshiro_next() % 64;
+            result = bag[bagpos];
+
+            // Not in history, gg!
+            if(result != history[0] && result != history[1] && result != history[2] && result != history[3]) {
+                break;
+            }
+
+            // Calculate longest drought.
+            longest_drought = 0;
+            for(int j = 0; j < 7; j++) {
+                if(longest_drought < histogram[j]) {
+                    longest_drought = histogram[j];
+                    droughted_piece = j+2;
+                }
+            }
+
+            // Churn the bag.
+            bag[bagpos] = droughted_piece;
+
+            // Get a piece in case of last loop.
+            bagpos = (int)(uint8_t)xoroshiro_next() % 64;
+            while (bagpos > 34) bagpos = (int)(uint8_t)xoroshiro_next() % 64;
+            result = bag[bagpos];
+        }
+
+        for (int i = 0; i < 7; i++) histogram[i]++;
+        histogram[result-2] = 0;
+
+        longest_drought = 0;
+        for(int i = 0; i < 7; i++) {
+            if(longest_drought < histogram[i]) {
+                longest_drought = histogram[i];
+                droughted_piece = i+2;
+            }
+        }
+
+        bag[bagpos] = droughted_piece;
+        int hist[7] = {0};
+        for (int i = 0; i < 35; i++) {
+            hist[bag[i]-2]++;
+        }
+        SDL_Log("%02d %02d %02d %02d %02d %02d %02d", hist[0], hist[1], hist[2], hist[3], hist[4], hist[5], hist[6]);
+    } else {
+        result = generate_piece();
+        int tries = 1;
+        while(tries++ < 6) {
+            if(result != history[0] && result != history[1] && result != history[2] && result != history[3]) {
+                break;
+            } else {
+                result = generate_piece();
+            }
         }
     }
-    history[0] = history[1];
-    history[1] = history[2];
-    history[2] = history[3];
-    history[3] = result;
+
+    history[3] = history[2];
+    history[2] = history[1];
+    history[1] = history[0];
+    history[0] = result;
 
     current_piece = (live_block_t){0};
     current_piece.type = next_piece;

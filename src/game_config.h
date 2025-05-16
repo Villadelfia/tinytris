@@ -53,6 +53,7 @@ int RENDER_SCALE = 2;
 bool TRANSPARENCY = true;
 bool MUTED = false;
 bool TI_ARS = true;
+bool TI_RNG = true;
 float BGM_VOLUME = 0.6f;
 float SFX_VOLUME = 1.0f;
 float FADE_TIME = 60.0f;
@@ -284,6 +285,7 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "transparent_field") == 0) TRANSPARENCY = v != 0;
         if (SDL_strcasecmp(name, "audio_enabled") == 0) MUTED = v == 0;
         if (SDL_strcasecmp(name, "tgm3_kicks") == 0) TI_ARS = v != 0;
+        if (SDL_strcasecmp(name, "tgm3_rng") == 0) TI_RNG = v != 0;
         if (SDL_strcasecmp(name, "bgm_volume") == 0) BGM_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "sfx_volume") == 0) SFX_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "fade_time") == 0) FADE_TIME = (float)v;

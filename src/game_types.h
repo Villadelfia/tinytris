@@ -7,12 +7,12 @@ typedef enum {
     BLOCK_VOID,
     BLOCK_X,
     BLOCK_I,
+    BLOCK_Z,
+    BLOCK_S,
+    BLOCK_J,
     BLOCK_L,
     BLOCK_O,
-    BLOCK_Z,
-    BLOCK_T,
-    BLOCK_J,
-    BLOCK_S
+    BLOCK_T
 } block_type_t;
 
 typedef enum {
