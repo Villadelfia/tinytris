@@ -90,7 +90,13 @@ Songs and sections can be reconfigured in `config.ini`.
 
 ## Other settings
 
-Several other settings can be adjusted from their default values in `config.ini`. The speed curve can be adjusted in `timings.ini`.
+Several other settings can be adjusted from their default values in `config.ini`.
+
+## Speed timings
+
+The speed curves are defined in `timings*.ini`.
+
+You can alter these, or create more to add modes.
 
 ## Features
 

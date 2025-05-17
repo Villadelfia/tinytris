@@ -70,11 +70,20 @@ typedef struct {
     wave_data_t head;
     wave_data_t body;
 } section_music_t;
+typedef struct {
+    char* name;
+    timing_t *game_timings;
+    timing_t credits_roll_timings;
+} game_mode_t;
 
+int32_t MODES_COUNT = 0;
+int32_t SELECTED_MODE = 0;
+game_mode_t *MODES = NULL;
 int32_t SECTION_COUNT = 0;
 section_music_t *SECTIONS = NULL;
 section_music_t TITLE_MUSIC = {0};
 section_music_t CREDITS_ROLL_MUSIC = {0};
+char* GAME_TIMINGS_NAME = NULL;
 size_t GAME_TIMINGS_COUNT = 0;
 timing_t *GAME_TIMINGS = NULL;
 timing_t CREDITS_ROLL_TIMING = {.level = INT32_MAX};
@@ -212,6 +221,10 @@ static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16
 
 static int parse_timing(void* user, const char* section, const char* name, const char* value) {
     if (SDL_strcasecmp(section, "timing") == 0) {
+        if (SDL_strcasecmp(name, "name") == 0) {
+            GAME_TIMINGS_NAME = SDL_strndup(value, SDL_strlen(value));
+            return 1;
+        }
         char *end = NULL, *temp = NULL;
         long level = 0;
         if (SDL_strcasecmp(name, "credits") != 0) {
@@ -417,35 +430,7 @@ static int SDLCALL compare_timing(const void *a, const void *b) {
     }
 }
 
-static inline void load_config() {
-    // Read the config.
-    ini_parse("config.ini", parse_config, NULL);
-    ini_parse("timings.ini", parse_timing, NULL);
-
-    // Sort the music if needed.
-    if (SECTIONS != NULL) SDL_qsort(SECTIONS, SECTION_COUNT, sizeof(section_music_t), compare_section);
-
-    // Sort the timings if needed, and append a termination at the end.
-    if (GAME_TIMINGS != NULL) {
-        SDL_qsort(GAME_TIMINGS, GAME_TIMINGS_COUNT, sizeof(timing_t), compare_timing);
-        GAME_TIMINGS_COUNT++;
-        GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
-        GAME_TIMINGS[GAME_TIMINGS_COUNT-1].level = -1;
-    } else {
-        GAME_TIMINGS = default_game_timing;
-        GAME_TIMINGS_COUNT = default_game_timing_len;
-        CREDITS_ROLL_TIMING = default_credits_roll_timing;
-    }
-}
-
 static inline void load_timings(const char* file) {
-    if (GAME_TIMINGS != default_game_timing) {
-        SDL_free(GAME_TIMINGS);
-        GAME_TIMINGS = NULL;
-        GAME_TIMINGS_COUNT = 0;
-        CREDITS_ROLL_TIMING.level = INT32_MAX;
-    }
-
     ini_parse(file, parse_timing, NULL);
 
     // Sort the timings if needed, and append a termination at the end.
@@ -454,9 +439,53 @@ static inline void load_timings(const char* file) {
         GAME_TIMINGS_COUNT++;
         GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
         GAME_TIMINGS[GAME_TIMINGS_COUNT-1].level = -1;
-    } else {
-        GAME_TIMINGS = default_game_timing;
-        GAME_TIMINGS_COUNT = default_game_timing_len;
-        CREDITS_ROLL_TIMING = default_credits_roll_timing;
     }
+}
+
+static inline void load_config() {
+    // Read the config.
+    ini_parse("config.ini", parse_config, NULL);
+
+    // Sort the music if needed.
+    if (SECTIONS != NULL) SDL_qsort(SECTIONS, SECTION_COUNT, sizeof(section_music_t), compare_section);
+
+    int count;
+    char **files = SDL_GlobDirectory(".", "timings*.ini", SDL_GLOB_CASEINSENSITIVE, &count);
+    for (int i = 0; i < count; i++) {
+        SDL_Log(files[i]);
+        GAME_TIMINGS_NAME = NULL;
+        GAME_TIMINGS_COUNT = 0;
+        GAME_TIMINGS = NULL;
+        CREDITS_ROLL_TIMING.level = INT32_MAX;
+
+        load_timings(files[i]);
+        SDL_Log(GAME_TIMINGS_NAME);
+
+        if (GAME_TIMINGS_NAME != NULL && GAME_TIMINGS != NULL) {
+            MODES_COUNT++;
+            MODES = SDL_realloc(MODES, MODES_COUNT * sizeof(game_mode_t));
+            MODES[MODES_COUNT-1].credits_roll_timings = CREDITS_ROLL_TIMING;
+            MODES[MODES_COUNT-1].name = GAME_TIMINGS_NAME;
+            MODES[MODES_COUNT-1].game_timings = GAME_TIMINGS;
+        }
+    }
+
+    if (count == 0 || MODES_COUNT == 0) {
+        GAME_TIMINGS_NAME = "Builtin";
+        GAME_TIMINGS = default_game_timing;
+        CREDITS_ROLL_TIMING = default_credits_roll_timing;
+    } else {
+        GAME_TIMINGS_NAME = MODES[0].name;
+        GAME_TIMINGS = MODES[0].game_timings;
+        CREDITS_ROLL_TIMING = MODES[0].credits_roll_timings;
+    }
+}
+
+static inline void change_mode(const int direction) {
+    SELECTED_MODE += direction;
+    if (SELECTED_MODE < 0) SELECTED_MODE = MODES_COUNT-1;
+    if (SELECTED_MODE >= MODES_COUNT) SELECTED_MODE = 0;
+    GAME_TIMINGS_NAME = MODES[SELECTED_MODE].name;
+    GAME_TIMINGS = MODES[SELECTED_MODE].game_timings;
+    CREDITS_ROLL_TIMING = MODES[SELECTED_MODE].credits_roll_timings;
 }

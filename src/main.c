@@ -1151,6 +1151,10 @@ void render_game() {
     if (!DETAILS) SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)get_gravity()/256.0f, current_timing->das, current_timing->lock, TI_ARS ? "Ti " : "TAP");
 
     if (game_state == STATE_WAIT) {
+        SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
+        if (MODES_COUNT > 1) SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + 16.0f) , "< %15s >", GAME_TIMINGS_NAME);
+        SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
+
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (4.0f * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
 
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (5.0f * 16.0f)) * 2 , "Keyboard:");
@@ -1270,6 +1274,8 @@ bool state_machine_tick() {
 
     // Do all the logic.
     if (game_state == STATE_WAIT) {
+        if (IS_JUST_HELD(button_l_held) && MODES_COUNT > 1) change_mode(-1);
+        if (IS_JUST_HELD(button_r_held) && MODES_COUNT > 1) change_mode(1);
         if (IS_JUST_HELD(button_start_held)) {
             game_state = STATE_BEGIN;
             game_state_ctr = 60;
