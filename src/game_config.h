@@ -57,6 +57,8 @@ bool TI_RNG = true;
 float BGM_VOLUME = 0.6f;
 float SFX_VOLUME = 1.0f;
 float FADE_TIME = 60.0f;
+bool DETAILS = false;
+float FIELD_TRANSPARENCY = 0.8f;
 
 typedef struct {
     int16_t *wave_data;
@@ -296,6 +298,8 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "bgm_volume") == 0) BGM_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "sfx_volume") == 0) SFX_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "fade_time") == 0) FADE_TIME = (float)v;
+        if (SDL_strcasecmp(name, "details_open") == 0) DETAILS = v != 0;
+        if (SDL_strcasecmp(name, "field_transparency") == 0) FIELD_TRANSPARENCY = (float)v/100.0f;
     }
 
     if (SDL_strcasecmp(section, "timing") == 0) {
@@ -425,10 +429,6 @@ static inline void load_config() {
     } else {
         GAME_TIMINGS = default_game_timing;
         GAME_TIMINGS_COUNT = default_game_timing_len;
-    }
-
-    // Load credit roll defaults if needed.
-    if (CREDITS_ROLL_TIMING.level == INT32_MAX) {
         CREDITS_ROLL_TIMING = default_credits_roll_timing;
     }
 }

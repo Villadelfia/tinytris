@@ -55,9 +55,10 @@ bool section_locked = false;
 int previous_clears = 0;
 bool first_piece = true;
 bool intro = true;
-bool details = false;
 bool mode_20g = false;
 int mode_invis = false;
+bool in_roll = false;
+int in_roll_remaining = 0;
 float volume = 1.0f;
 section_music_t *last_section = NULL;
 game_details_t game_details = {0};
@@ -82,6 +83,7 @@ sound_t tetris_sound;
 sound_t combo_sound;
 sound_t tetris_b2b_sound;
 sound_t gameover_sound;
+sound_t complete_sound;
 
 int32_t button_u_held = 0;
 int32_t button_l_held = 0;
@@ -113,7 +115,7 @@ float lerp(const float a, const float b, const float f) {
 }
 
 void apply_scale() {
-    SDL_SetWindowSize(window, details ? 26*16*RENDER_SCALE : 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
+    SDL_SetWindowSize(window, DETAILS ? 26*16*RENDER_SCALE : 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
     SDL_SetRenderScale(renderer, 1.0f * (float)RENDER_SCALE, 1.0f * (float)RENDER_SCALE);
 }
 
@@ -191,16 +193,16 @@ void play_sound(const sound_t *sound) {
 }
 
 void increment_level_piece_spawn() {
-    if (level % 100 == 99) return;
+    if (section_locked) return;
     level++;
-    if ((current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
+    if (!in_roll && (current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
         current_timing = current_timing+1;
     }
 }
 
 void increment_level_line_clear(const int lines) {
     if (lines == 0) {
-        if (level % 100 == 99) {
+        if (level % 100 == 99 || level == CREDITS_ROLL_TIMING.level-1) {
             if (!section_locked) {
                 play_sound(&section_lock_sound);
                 section_locked = true;
@@ -223,8 +225,16 @@ void increment_level_line_clear(const int lines) {
     previous_clears = lines;
     if ((level / 100) < ((level+lines) / 100)) play_sound(&section_pass_sound);
     level += lines;
-    if ((current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
+    if (level > CREDITS_ROLL_TIMING.level) level = CREDITS_ROLL_TIMING.level;
+    if (!in_roll && (current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
         current_timing = current_timing+1;
+    }
+
+    if (!in_roll && CREDITS_ROLL_TIMING.level == level) {
+        current_timing = &CREDITS_ROLL_TIMING;
+        in_roll = true;
+        game_state_ctr = 0;
+        game_state = STATE_FADEOUT;
     }
 }
 
@@ -672,11 +682,15 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     float moda = 1.0f;
     switch(lockStatus) {
         case LOCK_LOCKED:
-            if (mode_invis == 2 && game_state != STATE_GAMEOVER) return;
-            if (fade_state == 0.0f && game_state != STATE_GAMEOVER) return;
             mod = 0.6f;
-            moda = 0.8f * fade_state;
-            if (game_state == STATE_GAMEOVER && game_state_ctr < 0) moda = lerp(0.8f, 0.0f, ((float)-game_state_ctr/100.0f));
+            moda = 0.8f;
+            if (game_state == STATE_FADEOUT || game_state == STATE_GAMEOVER) {
+                if (game_state_ctr < 0) moda = lerp(0.8f, 0.0f, ((float)-game_state_ctr/100.0f));
+            } else {
+                if (mode_invis == 2) return;
+                if (fade_state == 0.0f) return;
+                moda = 0.8f * fade_state;
+            }
             break;
         case LOCK_FLASH:
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 192);
@@ -705,7 +719,7 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     if (moda <= 0.0f) return;
     SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
-    if ((current_timing->fade != 0 || mode_invis != 0) && game_state != STATE_GAMEOVER) return;
+    if ((current_timing->fade != 0 || mode_invis != 0) && game_state != STATE_GAMEOVER && game_state != STATE_FADEOUT) return;
     SDL_SetRenderDrawColor(renderer, 161, 161, 151, 255);
     if(voidToLeft) {
         SDL_RenderLine(renderer, dest.x, dest.y, dest.x, dest.y + dest.h - 1);
@@ -843,13 +857,13 @@ void render_field() {
 }
 
 void toggle_details() {
-    details = !details;
-    SDL_SetWindowSize(window, details ? 26*16*RENDER_SCALE : 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
+    DETAILS = !DETAILS;
+    SDL_SetWindowSize(window, DETAILS ? 26*16*RENDER_SCALE : 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
 }
 
 void render_details() {
-    if (!details) return;
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? 0.5f : 1.0f);
+    if (!DETAILS) return;
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? FIELD_TRANSPARENCY: 1.0f);
     SDL_FRect dst = {.x = FIELD_X_OFFSET+(12*16), .y = 0.0f, .w = 16.0f * 12.0f, .h = 16.0f * 26.0f};
     SDL_RenderFillRect(renderer, &dst);
 
@@ -873,24 +887,29 @@ void render_details() {
         int lap_cs = game_details.splits[i].lap_frames;
         int lap_seconds = lap_cs / 60;
         int lap_minutes = lap_seconds / 60;
-        lap_cs = (int)((float)lap_cs/60.0f)*100;
+        lap_cs = (int)(((float)lap_cs/60.0f)*100);
         lap_cs %= 100;
         lap_seconds %= 60;
         int split_cs = game_details.splits[i].split_frames;
         int split_seconds = split_cs / 60;
         int split_minutes = split_seconds / 60;
-        split_cs = (int)((float)split_cs/60.0f)*100;
+        split_cs = (int)(((float)split_cs/60.0f)*100);
         split_cs %= 100;
         split_seconds %= 60;
 
-        SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+22) + (float)(j*10),  "%04d-%04d (L)  %02d:%02d.%02d", section_start, section_end, lap_minutes, lap_seconds, lap_cs);
+        if (i == game_details.highest_regular_section + 1) {
+            SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+22) + (float)(j*10),  "FINALROLL (L)  %02d:%02d.%02d", lap_minutes, lap_seconds, lap_cs);
+        } else {
+            SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+22) + (float)(j*10),  "%04d-%04d (L)  %02d:%02d.%02d", section_start, section_end, lap_minutes, lap_seconds, lap_cs);
+        }
         SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+32) + (float)(j*10),  "          (S) %03d:%02d.%02d", split_minutes, split_seconds, split_cs);
     }
 
     int total_cs = game_details.total_frames;
+    if (in_roll && game_state != STATE_FADEOUT) total_cs = in_roll_remaining;
     int total_seconds = total_cs / 60;
     int total_minutes = total_seconds / 60;
-    total_cs = (int)((float)total_cs/60.0f)*100;
+    total_cs = (int)(((float)total_cs/60.0f)*100);
     total_cs %= 100;
     total_seconds %= 60;
 
@@ -916,6 +935,12 @@ void get_music_data(section_music_t **section) {
         return;
     }
 
+    if (in_roll && CREDITS_ROLL_MUSIC.level_start == -1) {
+        if (game_state == STATE_FADEOUT) *section = NULL;
+        else *section = &CREDITS_ROLL_MUSIC;
+        return;
+    }
+
     // Otherwise we're in game, get the most appropriate section.
     section_music_t *current = NULL;
     section_music_t *next = NULL;
@@ -930,6 +955,7 @@ void get_music_data(section_music_t **section) {
     }
 
     *section = current;
+    if (CREDITS_ROLL_TIMING.level - 20 <= level) *section = NULL;
     if (next == NULL) return;
     if (next->level_start - 20 <= level) *section = NULL;
 }
@@ -994,7 +1020,7 @@ void render_game() {
     SDL_RenderClear(renderer);
 
     // Background.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? 0.5f : 1.0f);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
     SDL_FRect dst = {.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET, .w = 16.0f * 10.0f, .h = 16.0f * 20.0f};
     SDL_RenderFillRect(renderer, &dst);
 
@@ -1037,7 +1063,7 @@ void render_game() {
     // A bit of info.
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
     SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-    if (!details) SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)get_gravity()/256.0f, current_timing->das, current_timing->lock, TI_ARS ? "Ti " : "TAP");
+    if (!DETAILS) SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)get_gravity()/256.0f, current_timing->das, current_timing->lock, TI_ARS ? "Ti " : "TAP");
 
     if (game_state == STATE_WAIT) {
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (4.0f * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
@@ -1079,7 +1105,7 @@ void render_game() {
 
 void do_reset() {
     generate_first_piece();
-    memset(field, 0, sizeof field);
+    SDL_memset(field, 0, sizeof field);
     game_state = STATE_WAIT;
     game_state_ctr = 60;
     lines_cleared = 0;
@@ -1089,11 +1115,24 @@ void do_reset() {
     first_piece = true;
     section_locked = false;
     previous_clears = 0;
+    in_roll = false;
+    in_roll_remaining = 0;
 }
 
 void update_details() {
     game_details.total_frames++;
-    if (level >= (game_details.current_section + 1) * 100 && game_details.current_section < 4095) game_details.current_section++;
+    if (!in_roll && level >= (game_details.current_section + 1) * 100) {
+        game_details.current_section++;
+        game_details.highest_regular_section = game_details.current_section;
+    } else if (in_roll) {
+        in_roll_remaining--;
+        if (in_roll_remaining == 0) {
+            game_state = STATE_GAMEOVER;
+            game_state_ctr = 10 * 21 + 1;
+            play_sound(&complete_sound);
+        }
+        game_details.current_section = game_details.highest_regular_section + 1;
+    }
     game_details.splits[game_details.current_section].lap_frames++;
     game_details.splits[game_details.current_section].split_frames = game_details.total_frames;
 }
@@ -1258,6 +1297,7 @@ bool state_machine_tick() {
         if (game_state_ctr != 0) return true;
         current_piece.type = BLOCK_VOID;
         check_clears();
+        if (game_state == STATE_FADEOUT) return true;
         if (lines_cleared != 0) {
             play_sound(&lineclear_sound);
             wipe_cleared();
@@ -1276,13 +1316,22 @@ bool state_machine_tick() {
         game_state = STATE_ARE;
         game_state_ctr = current_timing->line_are - 3;
     } else if (game_state == STATE_GAMEOVER) {
+        in_roll = false;
         game_state_ctr--;
         if (game_state_ctr < 0) {
             if (game_state_ctr == -120) do_reset();
         } else {
             gray_line(game_state_ctr / 10);
         }
-    } else if (game_state == STATE_PAUSED) {
+    } else if (game_state == STATE_FADEOUT) {
+        game_state_ctr--;
+        if (game_state_ctr == -120) {
+            game_state = STATE_ARE;
+            game_state_ctr = current_timing->are;
+            in_roll_remaining = current_timing->duration;
+            SDL_memset(field, 0, sizeof field);
+        }
+    }  else if (game_state == STATE_PAUSED) {
         game_state_ctr--;
         if (game_state_ctr == 0) {
             game_state = game_state_old;
@@ -1351,6 +1400,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_CreateWindowAndRenderer("Tinytris", 12*16*RENDER_SCALE, 26*16*RENDER_SCALE, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
     SDL_SetRenderScale(renderer, 1.0f * (float)RENDER_SCALE, 1.0f * (float)RENDER_SCALE);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    apply_scale();
 
     // Make the window entirely draggable.
     SDL_SetWindowHitTest(window, window_hit_test, NULL);
@@ -1384,6 +1434,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     load_sound(&tetris_sound, "data/tetris.ogg", NULL, 0);
     load_sound(&tetris_b2b_sound, "data/tetris_b2b.ogg", NULL, 0);
     load_sound(&gameover_sound, "data/gameover.ogg", NULL, 0);
+    load_sound(&complete_sound, "data/complete.ogg", NULL, 0);
 
     // Setup music audio stream if needed.
     if (TITLE_MUSIC.level_start == -1 || SECTION_COUNT != 0) {

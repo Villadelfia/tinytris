@@ -68,6 +68,7 @@ In addition, several sounds are supported but are not included by default:
 - `tetris_b2b.ogg`: Played when clearing a tetris right after clearing another tetris.
 - `combo.ogg`: Played when clearing 2 or more lines after clearing one or more line.
 - `gameover.ogg`: Played when topping out.
+- `complete.ogg`: Played when completing a game.
 
 ## Music
 Music is supported. The game will look for the following songs in the data directory by default:

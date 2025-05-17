@@ -51,6 +51,7 @@ typedef struct {
 typedef struct {
     int32_t total_frames;
     int32_t current_section;
+    int32_t highest_regular_section;
     split_t splits[4096];
 } game_details_t;
 
@@ -68,7 +69,8 @@ typedef enum {
     STATE_GAMEOVER,
     STATE_PAUSED,
     STATE_BEGIN,
-    STATE_WAIT
+    STATE_WAIT,
+    STATE_FADEOUT
 } game_state_t;
 
 typedef struct {
