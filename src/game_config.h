@@ -72,8 +72,10 @@ typedef struct {
 int32_t SECTION_COUNT = 0;
 section_music_t *SECTIONS = NULL;
 section_music_t TITLE_MUSIC = {0};
-size_t game_timings_set = 0;
-timing_t game_timing[1024] = {0};
+section_music_t CREDITS_ROLL_MUSIC = {0};
+size_t GAME_TIMINGS_COUNT = 0;
+timing_t *GAME_TIMINGS = NULL;
+timing_t CREDITS_ROLL_TIMING = {.level = INT32_MAX};
 
 static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16_t **head_data, uint32_t *head_data_len, SDL_AudioSpec *body_format, int16_t **body_data, uint32_t *body_data_len) {
     // Build the new strings.
@@ -261,6 +263,11 @@ static int parse_config(void* user, const char* section, const char* name, const
             if (load_song(value, &TITLE_MUSIC.head.format, &TITLE_MUSIC.head.wave_data, &TITLE_MUSIC.head.wave_data_len, &TITLE_MUSIC.body.format, &TITLE_MUSIC.body.wave_data, &TITLE_MUSIC.body.wave_data_len)) {
                 TITLE_MUSIC.level_start = -1;
             }
+        } else if (SDL_strcasecmp(name, "credits") == 0) {
+            // Load roll...
+            if (load_song(value, &CREDITS_ROLL_MUSIC.head.format, &CREDITS_ROLL_MUSIC.head.wave_data, &CREDITS_ROLL_MUSIC.head.wave_data_len, &CREDITS_ROLL_MUSIC.body.format, &CREDITS_ROLL_MUSIC.body.wave_data, &CREDITS_ROLL_MUSIC.body.wave_data_len)) {
+                CREDITS_ROLL_MUSIC.level_start = -1;
+            }
         } else {
             // Load section music...
             char *end;
@@ -292,40 +299,85 @@ static int parse_config(void* user, const char* section, const char* name, const
     }
 
     if (SDL_strcasecmp(section, "timing") == 0) {
-        if (game_timings_set == 1022) return 1;
         char *end = NULL, *temp = NULL;
-        const long level = SDL_strtol(name, &end, 10);
-        if (end == name) return 1;
-        const long g = SDL_strtol(value, &end, 10);
+        long level = 0;
+        if (SDL_strcasecmp(name, "credits") != 0) {
+            level = SDL_strtol(name, &end, 0);
+            if (end == name) return 1;
+        }
+
+        const long g = SDL_strtol(value, &end, 0);
         if (end == value) return 1;
         temp = end;
-        const long are = SDL_strtol(temp, &end, 10);
+        const long are = SDL_strtol(temp, &end, 0);
         if (end == temp) return 1;
         temp = end;
-        const long line_are = SDL_strtol(temp, &end, 10);
+        const long line_are = SDL_strtol(temp, &end, 0);
         if (end == temp) return 1;
         temp = end;
-        const long das = SDL_strtol(temp, &end, 10);
+        const long das = SDL_strtol(temp, &end, 0);
         if (end == temp) return 1;
         temp = end;
-        const long lock = SDL_strtol(temp, &end, 10);
+        const long lock = SDL_strtol(temp, &end, 0);
         if (end == temp) return 1;
         temp = end;
-        const long clear = SDL_strtol(temp, &end, 10);
+        const long clear = SDL_strtol(temp, &end, 0);
         if (end == temp) return 1;
         temp = end;
-        const long fade = SDL_strtol(temp, &end, 10);
+        const long fade = SDL_strtol(temp, &end, 0);
         if (end == temp) return 1;
+        temp = end;
+        const long garbage = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+        const long effect = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
 
-        game_timing[game_timings_set].level = level;
-        game_timing[game_timings_set].g = g;
-        game_timing[game_timings_set].are = are;
-        game_timing[game_timings_set].line_are = line_are;
-        game_timing[game_timings_set].das = das;
-        game_timing[game_timings_set].lock = lock;
-        game_timing[game_timings_set].clear = clear;
-        game_timing[game_timings_set].fade = fade;
-        game_timings_set++;
+        if (SDL_strcasecmp(name, "credits") == 0) {
+            level = SDL_strtol(temp, &end, 0);
+            if (end == temp) return 1;
+            temp = end;
+            const long duration = SDL_strtol(temp, &end, 0);
+            if (end == temp) return 1;
+
+            CREDITS_ROLL_TIMING.level = level;
+            CREDITS_ROLL_TIMING.g = g;
+            CREDITS_ROLL_TIMING.are = are;
+            CREDITS_ROLL_TIMING.line_are = line_are;
+            CREDITS_ROLL_TIMING.das = das;
+            CREDITS_ROLL_TIMING.lock = lock;
+            CREDITS_ROLL_TIMING.clear = clear;
+            CREDITS_ROLL_TIMING.fade = fade;
+            CREDITS_ROLL_TIMING.garbage = garbage;
+            CREDITS_ROLL_TIMING.effect = effect;
+            CREDITS_ROLL_TIMING.duration = duration;
+            return 1;
+        }
+
+        timing_t t = {
+            .level = level,
+            .g = g,
+            .are = are,
+            .line_are = line_are,
+            .das = das,
+            .lock = lock,
+            .clear = clear,
+            .fade = fade,
+            .garbage = garbage,
+            .effect = effect,
+            .duration = 0
+        };
+        t.level = level;
+        t.g = g;
+        t.are = are;
+        t.line_are = line_are;
+        t.das = das;
+        t.lock = lock;
+
+        GAME_TIMINGS_COUNT++;
+        GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
+        SDL_memcpy(GAME_TIMINGS + (GAME_TIMINGS_COUNT-1), &t, sizeof(timing_t));
     }
 
     return 1;
@@ -358,9 +410,25 @@ static int SDLCALL compare_timing(const void *a, const void *b) {
 }
 
 static inline void load_config() {
-    for (int i = 0; i < 1024; ++i) game_timing[i] = (timing_t){INT32_MAX, -1, -1, -1, -1, -1, -1, -1};
+    // Read the config.
     ini_parse("config.ini", parse_config, NULL);
+
+    // Sort the music if needed.
     if (SECTIONS != NULL) SDL_qsort(SECTIONS, SECTION_COUNT, sizeof(section_music_t), compare_section);
-    if (game_timings_set == 0) SDL_memcpy(game_timing, default_game_timing, sizeof(default_game_timing));
-    else SDL_qsort(game_timing, 1024, sizeof(timing_t), compare_timing);
+
+    // Sort the timings if needed, and append a termination at the end.
+    if (GAME_TIMINGS != NULL) {
+        SDL_qsort(GAME_TIMINGS, GAME_TIMINGS_COUNT, sizeof(timing_t), compare_timing);
+        GAME_TIMINGS_COUNT++;
+        GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
+        GAME_TIMINGS[GAME_TIMINGS_COUNT-1].level = -1;
+    } else {
+        GAME_TIMINGS = default_game_timing;
+        GAME_TIMINGS_COUNT = default_game_timing_len;
+    }
+
+    // Load credit roll defaults if needed.
+    if (CREDITS_ROLL_TIMING.level == INT32_MAX) {
+        CREDITS_ROLL_TIMING = default_credits_roll_timing;
+    }
 }

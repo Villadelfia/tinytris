@@ -497,7 +497,6 @@ void generate_first_piece() {
     history[2] = BLOCK_S;
     history[3] = BLOCK_S;
     for (int i = 0; i < 35; i++) bag[i] = (i/5)+2;
-    SDL_Log("%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d", bag[0], bag[1], bag[2], bag[3], bag[4], bag[5], bag[6], bag[7], bag[8], bag[9], bag[10], bag[11], bag[12], bag[13], bag[14], bag[15], bag[16], bag[17], bag[18], bag[19], bag[20], bag[21], bag[22], bag[23], bag[24], bag[25], bag[26], bag[27], bag[28], bag[29], bag[30], bag[31], bag[32], bag[33], bag[34]);
 
     histogram[0] = 4;
     histogram[1] = 4;
@@ -566,7 +565,6 @@ void generate_next_piece() {
         for (int i = 0; i < 35; i++) {
             hist[bag[i]-2]++;
         }
-        SDL_Log("%02d %02d %02d %02d %02d %02d %02d", hist[0], hist[1], hist[2], hist[3], hist[4], hist[5], hist[6]);
     } else {
         result = generate_piece();
         int tries = 1;
@@ -1152,7 +1150,7 @@ bool state_machine_tick() {
             game_state = STATE_BEGIN;
             game_state_ctr = 60;
             play_sound(&ready_sound);
-            current_timing = &game_timing[0];
+            current_timing = GAME_TIMINGS;
             level = 0;
         }
     } else if (game_state == STATE_BEGIN) {
@@ -1345,7 +1343,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
     seed_rng();
     generate_first_piece();
-    current_timing = &game_timing[0];
+    current_timing = GAME_TIMINGS;
 
     // Create the window.
     SDL_SetAppMetadata("Tinytris", "1.0", "org.villadelfia.tinytris");

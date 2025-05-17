@@ -73,11 +73,16 @@ typedef enum {
 
 typedef struct {
     int32_t level;
-    int g;
-    int are;
-    int line_are;
-    int das;
-    int lock;
-    int clear;
-    int fade;
+    int32_t g;
+    int32_t are;
+    int32_t line_are;
+    int32_t das;
+    int32_t lock;
+    int32_t clear;
+    int32_t fade;
+    int32_t garbage;
+    int32_t effect;
+
+    // Only used for roll.
+    int32_t duration;
 } timing_t;
