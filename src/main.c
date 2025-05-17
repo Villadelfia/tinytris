@@ -60,6 +60,7 @@ int mode_invis = false;
 bool in_roll = false;
 int in_roll_remaining = 0;
 float volume = 1.0f;
+int garbage_ctr = 0;
 section_music_t *last_section = NULL;
 game_details_t game_details = {0};
 
@@ -192,11 +193,87 @@ void play_sound(const sound_t *sound) {
     SDL_PutAudioStreamData(sound->stream, sound->wave_data, (int)sound->wave_data_len);
 }
 
+void check_garbage() {
+    if (current_timing->garbage == 0) {
+        garbage_ctr = 0;
+        return;
+    }
+
+    if (garbage_ctr != 0) return;
+    garbage_ctr = current_timing->garbage;
+    if (garbage_ctr < 0) garbage_ctr = -garbage_ctr;
+    garbage_ctr--;
+}
+
+void add_garbage() {
+    bool all_empty =
+        (field[0][20].type == BLOCK_VOID) &&
+        (field[1][20].type == BLOCK_VOID) &&
+        (field[2][20].type == BLOCK_VOID) &&
+        (field[3][20].type == BLOCK_VOID) &&
+        (field[4][20].type == BLOCK_VOID) &&
+        (field[5][20].type == BLOCK_VOID) &&
+        (field[6][20].type == BLOCK_VOID) &&
+        (field[7][20].type == BLOCK_VOID) &&
+        (field[8][20].type == BLOCK_VOID) &&
+        (field[9][20].type == BLOCK_VOID);
+    if (all_empty) return;
+
+    // Copy everything up.
+    for (int i = 0; i < 20; ++i) {
+        field[0][i] = field[0][i+1];
+        field[1][i] = field[1][i+1];
+        field[2][i] = field[2][i+1];
+        field[3][i] = field[3][i+1];
+        field[4][i] = field[4][i+1];
+        field[5][i] = field[5][i+1];
+        field[6][i] = field[6][i+1];
+        field[7][i] = field[7][i+1];
+        field[8][i] = field[8][i+1];
+        field[9][i] = field[9][i+1];
+    }
+
+    block_t garbage = {
+        .type = BLOCK_X,
+        .lock_status = LOCK_LOCKED,
+        .lock_param = 0,
+        .locked_at = game_details.total_frames,
+        .fading = false,
+        .fade_state = 1.0f
+    };
+    block_t empty = {0};
+
+    bool all_garbage =
+        (field[0][20].type == BLOCK_VOID || field[0][20].type == BLOCK_X) &&
+        (field[1][20].type == BLOCK_VOID || field[1][20].type == BLOCK_X) &&
+        (field[2][20].type == BLOCK_VOID || field[2][20].type == BLOCK_X) &&
+        (field[3][20].type == BLOCK_VOID || field[3][20].type == BLOCK_X) &&
+        (field[4][20].type == BLOCK_VOID || field[4][20].type == BLOCK_X) &&
+        (field[5][20].type == BLOCK_VOID || field[5][20].type == BLOCK_X) &&
+        (field[6][20].type == BLOCK_VOID || field[6][20].type == BLOCK_X) &&
+        (field[7][20].type == BLOCK_VOID || field[7][20].type == BLOCK_X) &&
+        (field[8][20].type == BLOCK_VOID || field[8][20].type == BLOCK_X) &&
+        (field[9][20].type == BLOCK_VOID || field[9][20].type == BLOCK_X);
+
+    // Make bottom row garbage.
+    for (int i = 0; i < 10; ++i) {
+        if (current_timing->garbage < 0 && !all_garbage) {
+            if (field[i][20].type != BLOCK_VOID) field[i][20] = empty;
+            else field[i][20] = garbage;
+        } else {
+            if (field[i][20].type != BLOCK_VOID) field[i][20] = garbage;
+        }
+    }
+
+    check_garbage();
+}
+
 void increment_level_piece_spawn() {
     if (section_locked) return;
     level++;
     if (!in_roll && (current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
         current_timing = current_timing+1;
+        check_garbage();
     }
 }
 
@@ -209,6 +286,11 @@ void increment_level_line_clear(const int lines) {
             }
         }
         previous_clears = 0;
+
+        if (current_timing->garbage != 0) {
+            if (garbage_ctr == 0) add_garbage();
+            else garbage_ctr--;
+        }
         return;
     }
 
@@ -228,10 +310,13 @@ void increment_level_line_clear(const int lines) {
     if (level > CREDITS_ROLL_TIMING.level) level = CREDITS_ROLL_TIMING.level;
     if (!in_roll && (current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
         current_timing = current_timing+1;
+        check_garbage();
     }
 
     if (!in_roll && CREDITS_ROLL_TIMING.level == level) {
         current_timing = &CREDITS_ROLL_TIMING;
+        garbage_ctr = 0;
+        check_garbage();
         in_roll = true;
         game_state_ctr = 0;
         game_state = STATE_FADEOUT;
@@ -1190,6 +1275,7 @@ bool state_machine_tick() {
             game_state_ctr = 60;
             play_sound(&ready_sound);
             current_timing = GAME_TIMINGS;
+            check_garbage();
             level = 0;
         }
     } else if (game_state == STATE_BEGIN) {
@@ -1209,7 +1295,7 @@ bool state_machine_tick() {
     } else if (game_state == STATE_ARE) {
         update_details();
         game_state_ctr--;
-        if (game_state_ctr == 0) {
+        if (game_state_ctr <= 0) {
             if (!first_piece) increment_level_piece_spawn();
             first_piece = false;
             generate_next_piece();
@@ -1310,7 +1396,7 @@ bool state_machine_tick() {
     } else if (game_state == STATE_CLEAR) {
         update_details();
         game_state_ctr--;
-        if (game_state_ctr != 0) return true;
+        if (game_state_ctr > 0) return true;
         play_sound(&linecollapse_sound);
         collapse_clears();
         game_state = STATE_ARE;

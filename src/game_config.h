@@ -210,6 +210,92 @@ static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16
     return retval;
 }
 
+static int parse_timing(void* user, const char* section, const char* name, const char* value) {
+    if (SDL_strcasecmp(section, "timing") == 0) {
+        char *end = NULL, *temp = NULL;
+        long level = 0;
+        if (SDL_strcasecmp(name, "credits") != 0) {
+            level = SDL_strtol(name, &end, 0);
+            if (end == name) return 1;
+        }
+
+        const long g = SDL_strtol(value, &end, 0);
+        if (end == value) return 1;
+        temp = end;
+        const long are = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+        const long line_are = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+        const long das = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+        const long lock = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+        const long clear = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+        const long fade = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+        const long garbage = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+        const long effect = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+
+        if (SDL_strcasecmp(name, "credits") == 0) {
+            level = SDL_strtol(temp, &end, 0);
+            if (end == temp) return 1;
+            temp = end;
+            const long duration = SDL_strtol(temp, &end, 0);
+            if (end == temp) return 1;
+
+            CREDITS_ROLL_TIMING.level = level;
+            CREDITS_ROLL_TIMING.g = g;
+            CREDITS_ROLL_TIMING.are = are;
+            CREDITS_ROLL_TIMING.line_are = line_are;
+            CREDITS_ROLL_TIMING.das = das;
+            CREDITS_ROLL_TIMING.lock = lock;
+            CREDITS_ROLL_TIMING.clear = clear;
+            CREDITS_ROLL_TIMING.fade = fade;
+            CREDITS_ROLL_TIMING.garbage = garbage;
+            CREDITS_ROLL_TIMING.effect = effect;
+            CREDITS_ROLL_TIMING.duration = duration;
+            return 1;
+        }
+
+        timing_t t = {
+            .level = level,
+            .g = g,
+            .are = are,
+            .line_are = line_are,
+            .das = das,
+            .lock = lock,
+            .clear = clear,
+            .fade = fade,
+            .garbage = garbage,
+            .effect = effect,
+            .duration = 0
+        };
+        t.level = level;
+        t.g = g;
+        t.are = are;
+        t.line_are = line_are;
+        t.das = das;
+        t.lock = lock;
+
+        GAME_TIMINGS_COUNT++;
+        GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
+        SDL_memcpy(GAME_TIMINGS + (GAME_TIMINGS_COUNT-1), &t, sizeof(timing_t));
+    }
+
+    return 1;
+}
+
 static int parse_config(void* user, const char* section, const char* name, const char* value) {
     if (SDL_strcasecmp(section, "keyboard") == 0) {
         const SDL_Scancode s = SDL_GetScancodeFromName(value);
@@ -302,88 +388,6 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "field_transparency") == 0) FIELD_TRANSPARENCY = (float)v/100.0f;
     }
 
-    if (SDL_strcasecmp(section, "timing") == 0) {
-        char *end = NULL, *temp = NULL;
-        long level = 0;
-        if (SDL_strcasecmp(name, "credits") != 0) {
-            level = SDL_strtol(name, &end, 0);
-            if (end == name) return 1;
-        }
-
-        const long g = SDL_strtol(value, &end, 0);
-        if (end == value) return 1;
-        temp = end;
-        const long are = SDL_strtol(temp, &end, 0);
-        if (end == temp) return 1;
-        temp = end;
-        const long line_are = SDL_strtol(temp, &end, 0);
-        if (end == temp) return 1;
-        temp = end;
-        const long das = SDL_strtol(temp, &end, 0);
-        if (end == temp) return 1;
-        temp = end;
-        const long lock = SDL_strtol(temp, &end, 0);
-        if (end == temp) return 1;
-        temp = end;
-        const long clear = SDL_strtol(temp, &end, 0);
-        if (end == temp) return 1;
-        temp = end;
-        const long fade = SDL_strtol(temp, &end, 0);
-        if (end == temp) return 1;
-        temp = end;
-        const long garbage = SDL_strtol(temp, &end, 0);
-        if (end == temp) return 1;
-        temp = end;
-        const long effect = SDL_strtol(temp, &end, 0);
-        if (end == temp) return 1;
-        temp = end;
-
-        if (SDL_strcasecmp(name, "credits") == 0) {
-            level = SDL_strtol(temp, &end, 0);
-            if (end == temp) return 1;
-            temp = end;
-            const long duration = SDL_strtol(temp, &end, 0);
-            if (end == temp) return 1;
-
-            CREDITS_ROLL_TIMING.level = level;
-            CREDITS_ROLL_TIMING.g = g;
-            CREDITS_ROLL_TIMING.are = are;
-            CREDITS_ROLL_TIMING.line_are = line_are;
-            CREDITS_ROLL_TIMING.das = das;
-            CREDITS_ROLL_TIMING.lock = lock;
-            CREDITS_ROLL_TIMING.clear = clear;
-            CREDITS_ROLL_TIMING.fade = fade;
-            CREDITS_ROLL_TIMING.garbage = garbage;
-            CREDITS_ROLL_TIMING.effect = effect;
-            CREDITS_ROLL_TIMING.duration = duration;
-            return 1;
-        }
-
-        timing_t t = {
-            .level = level,
-            .g = g,
-            .are = are,
-            .line_are = line_are,
-            .das = das,
-            .lock = lock,
-            .clear = clear,
-            .fade = fade,
-            .garbage = garbage,
-            .effect = effect,
-            .duration = 0
-        };
-        t.level = level;
-        t.g = g;
-        t.are = are;
-        t.line_are = line_are;
-        t.das = das;
-        t.lock = lock;
-
-        GAME_TIMINGS_COUNT++;
-        GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
-        SDL_memcpy(GAME_TIMINGS + (GAME_TIMINGS_COUNT-1), &t, sizeof(timing_t));
-    }
-
     return 1;
 }
 
@@ -416,9 +420,33 @@ static int SDLCALL compare_timing(const void *a, const void *b) {
 static inline void load_config() {
     // Read the config.
     ini_parse("config.ini", parse_config, NULL);
+    ini_parse("timings.ini", parse_timing, NULL);
 
     // Sort the music if needed.
     if (SECTIONS != NULL) SDL_qsort(SECTIONS, SECTION_COUNT, sizeof(section_music_t), compare_section);
+
+    // Sort the timings if needed, and append a termination at the end.
+    if (GAME_TIMINGS != NULL) {
+        SDL_qsort(GAME_TIMINGS, GAME_TIMINGS_COUNT, sizeof(timing_t), compare_timing);
+        GAME_TIMINGS_COUNT++;
+        GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
+        GAME_TIMINGS[GAME_TIMINGS_COUNT-1].level = -1;
+    } else {
+        GAME_TIMINGS = default_game_timing;
+        GAME_TIMINGS_COUNT = default_game_timing_len;
+        CREDITS_ROLL_TIMING = default_credits_roll_timing;
+    }
+}
+
+static inline void load_timings(const char* file) {
+    if (GAME_TIMINGS != default_game_timing) {
+        SDL_free(GAME_TIMINGS);
+        GAME_TIMINGS = NULL;
+        GAME_TIMINGS_COUNT = 0;
+        CREDITS_ROLL_TIMING.level = INT32_MAX;
+    }
+
+    ini_parse(file, parse_timing, NULL);
 
     // Sort the timings if needed, and append a termination at the end.
     if (GAME_TIMINGS != NULL) {
