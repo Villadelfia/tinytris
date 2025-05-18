@@ -452,14 +452,12 @@ static inline void load_config() {
     int count;
     char **files = SDL_GlobDirectory(".", "timings*.ini", SDL_GLOB_CASEINSENSITIVE, &count);
     for (int i = 0; i < count; i++) {
-        SDL_Log(files[i]);
         GAME_TIMINGS_NAME = NULL;
         GAME_TIMINGS_COUNT = 0;
         GAME_TIMINGS = NULL;
         CREDITS_ROLL_TIMING.level = INT32_MAX;
 
         load_timings(files[i]);
-        SDL_Log(GAME_TIMINGS_NAME);
 
         if (GAME_TIMINGS_NAME != NULL && GAME_TIMINGS != NULL) {
             MODES_COUNT++;

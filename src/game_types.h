@@ -88,3 +88,13 @@ typedef struct {
     // Only used for roll.
     int32_t duration;
 } timing_t;
+
+#define TORIKAN_VALUE_MASK           (0x0000FFFF)
+#define TORIKAN_SCOPE_MASK           (0x00010000)
+#define TORIKAN_EFFECT_MASK          (0x00020000)
+#define CLEAR_FIELD_MASK             (0x80000000)
+#define RESET_VISIBILITY_MASK        (0x40000000)
+#define RESET_VISIBILITY_TIMER_MASK  (0x20000000)
+#define INVISIBILITY_HINT_ONCE_MASK  (0x10000000)
+#define INVISIBILITY_HINT_FLASH_MASK (0x08000000)
+#define TGM2_PLUS_SEQUENCE_MASK      (0x04000000)

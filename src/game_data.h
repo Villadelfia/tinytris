@@ -229,3 +229,30 @@ timing_t default_game_timing[] = {
     {-1,      0,  0,  0,  0,  0,  0,   0, 0, 0, 0}
 };
 timing_t default_credits_roll_timing = {4499, 5120, 27, 27, 10, 30, 25, 1, 0, 0, 3600};
+
+char* tgm2_plus_sequence[] = {
+    " XXXXXXXXX",
+    " XXXXXXXXX",
+    " XXXXXXXXX",
+    " XXXXXXXXX",
+    "XXXXXXXXX ",
+    "XXXXXXXXX ",
+    "XXXXXXXXX ",
+    "XXXXXXXXX ",
+    "  XXXXXXXX",
+    " XXXXXXXXX",
+    " XXXXXXXXX",
+    "XXXXXXXX  ",
+    "XXXXXXXXX ",
+    "XXXXXXXXX ",
+    "XX XXXXXXX",
+    "X  XXXXXXX",
+    "X XXXXXXXX",
+    "XXXXXXX XX",
+    "XXXXXXX  X",
+    "XXXXXXXX X",
+    "XXXX  XXXX",
+    "XXXX  XXXX",
+    "XXXX XXXXX",
+    "XXX   XXXX"
+};

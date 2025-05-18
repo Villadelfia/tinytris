@@ -63,6 +63,11 @@ float volume = 1.0f;
 int garbage_ctr = 0;
 section_music_t *last_section = NULL;
 game_details_t game_details = {0};
+int32_t time_spent_at_level[0xFFFF] = {0};
+bool show_edge_during_lockflash = false;
+int32_t show_edge_timer = 0;
+bool use_tgm2_plus_sequence = false;
+int sequence_index = 0;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -243,6 +248,19 @@ void add_garbage() {
     };
     block_t empty = {0};
 
+    if (use_tgm2_plus_sequence) {
+        char *garbage_ptr = tgm2_plus_sequence[sequence_index++];
+        sequence_index %= 24;
+
+        for (int i = 0; i < 10; ++i) {
+            if (garbage_ptr[i] == ' ') field[i][20] = empty;
+            else field[i][20] = garbage;
+        }
+
+        check_garbage();
+        return;
+    }
+
     bool all_garbage =
         (field[0][20].type == BLOCK_VOID || field[0][20].type == BLOCK_X) &&
         (field[1][20].type == BLOCK_VOID || field[1][20].type == BLOCK_X) &&
@@ -268,12 +286,90 @@ void add_garbage() {
     check_garbage();
 }
 
+int32_t time_spent(int32_t from, int32_t to) {
+    if (from < 0) from = 0;
+    if (to <= from) return 0;
+    int32_t sum = 0;
+    for (; from < to; from++) {
+        sum += time_spent_at_level[from];
+    }
+    return sum;
+}
+
+void check_effect() {
+    int32_t effect = current_timing->effect;
+    const int32_t torikan = effect & TORIKAN_VALUE_MASK;
+    bool torikan_scope = (effect & TORIKAN_SCOPE_MASK) != 0;
+    bool torikan_effect = (effect & TORIKAN_EFFECT_MASK) != 0;
+    bool clear_field = (effect & CLEAR_FIELD_MASK) != 0;
+    bool reset_visibility = (effect & RESET_VISIBILITY_MASK) != 0;
+    bool reset_visibility_timer = (effect & RESET_VISIBILITY_TIMER_MASK) != 0;
+    bool invisibility_hint_once = (effect & INVISIBILITY_HINT_ONCE_MASK) != 0;
+    bool invisibility_hint_flash = (effect & INVISIBILITY_HINT_FLASH_MASK) != 0;
+    bool tgm2_plus_sequence = (effect & TGM2_PLUS_SEQUENCE_MASK) != 0;
+    if (torikan != 0) {
+        bool hit_torikan = game_details.total_frames > torikan;
+        if (torikan_scope) hit_torikan = time_spent(level-100, level) > torikan;
+        if (hit_torikan) {
+            if (torikan_effect) {
+                // Gameover
+                current_piece.type = BLOCK_VOID;
+                game_state = STATE_GAMEOVER;
+                game_state_ctr = 10 * 21 + 1;
+                play_sound(&gameover_sound);
+                return;
+            } else {
+                // Roll
+                current_timing = &CREDITS_ROLL_TIMING;
+                garbage_ctr = 0;
+                check_garbage();
+                effect = current_timing->effect;
+                clear_field = (effect & CLEAR_FIELD_MASK) != 0;
+                reset_visibility = (effect & RESET_VISIBILITY_MASK) != 0;
+                reset_visibility_timer = (effect & RESET_VISIBILITY_TIMER_MASK) != 0;
+                invisibility_hint_once = (effect & INVISIBILITY_HINT_ONCE_MASK) != 0;
+                invisibility_hint_flash = (effect & INVISIBILITY_HINT_FLASH_MASK) != 0;
+                in_roll = true;
+                game_state_ctr = 0;
+                game_state = STATE_FADEOUT;
+                play_sound(&complete_sound);
+            }
+        }
+    }
+
+    if (clear_field) {
+        SDL_memset(field, 0, sizeof field);
+    }
+
+    if (reset_visibility || reset_visibility_timer) {
+        for (int x = 0; x < 10; x++) {
+            for (int y = 0; y < 21; y++) {
+                if (reset_visibility || field[x][y].fading == false) {
+                    field[x][y].fade_state = 1.0f;
+                    field[x][y].fading = false;
+                    field[x][y].locked_at = game_details.total_frames;
+                }
+            }
+        }
+    }
+
+    if (invisibility_hint_once) {
+        show_edge_timer = 60;
+    }
+
+    show_edge_during_lockflash = invisibility_hint_flash;
+
+    if (tgm2_plus_sequence && !use_tgm2_plus_sequence) sequence_index = 0;
+    use_tgm2_plus_sequence = tgm2_plus_sequence;
+}
+
 void increment_level_piece_spawn() {
     if (section_locked) return;
     level++;
     if (!in_roll && (current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
         current_timing = current_timing+1;
         check_garbage();
+        check_effect();
     }
 }
 
@@ -311,15 +407,18 @@ void increment_level_line_clear(const int lines) {
     if (!in_roll && (current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) {
         current_timing = current_timing+1;
         check_garbage();
+        check_effect();
     }
 
     if (!in_roll && CREDITS_ROLL_TIMING.level == level) {
         current_timing = &CREDITS_ROLL_TIMING;
         garbage_ctr = 0;
         check_garbage();
+        check_effect();
         in_roll = true;
         game_state_ctr = 0;
         game_state = STATE_FADEOUT;
+        play_sound(&complete_sound);
     }
 }
 
@@ -708,6 +807,9 @@ void generate_next_piece() {
 
     if (get_gravity() == 5120) {
         while (!piece_grounded()) try_descend();
+    }
+
+    if (piece_grounded() && piece_collides(current_piece) == -1) {
         play_sound(&pieceland_sound);
     }
 }
@@ -772,8 +874,6 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             if (game_state == STATE_FADEOUT || game_state == STATE_GAMEOVER) {
                 if (game_state_ctr < 0) moda = lerp(0.8f, 0.0f, ((float)-game_state_ctr/100.0f));
             } else {
-                if (mode_invis == 2) return;
-                if (fade_state == 0.0f) return;
                 moda = 0.8f * fade_state;
             }
             break;
@@ -801,10 +901,17 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
 
     SDL_SetTextureColorModFloat(block_texture, mod, mod, mod);
     SDL_SetTextureAlphaModFloat(block_texture, moda);
-    if (moda <= 0.0f) return;
-    SDL_RenderTexture(renderer, block_texture, &src, &dest);
+    if (moda > 0.0f) SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
-    if ((current_timing->fade != 0 || mode_invis != 0) && game_state != STATE_GAMEOVER && game_state != STATE_FADEOUT) return;
+    bool should_draw_edges = false;
+    if (current_timing->fade == 0 && mode_invis == 0) should_draw_edges = true;
+    if (!should_draw_edges && game_state == STATE_GAMEOVER) should_draw_edges = true;
+    if (!should_draw_edges && game_state == STATE_FADEOUT) should_draw_edges = true;
+    if (!should_draw_edges && show_edge_during_lockflash && game_state == STATE_LOCKFLASH) should_draw_edges = true;
+    if (!should_draw_edges && show_edge_timer > 0) should_draw_edges = true;
+    if (!should_draw_edges) return;
+
+    if (show_edge_timer > 0) show_edge_timer--;
     SDL_SetRenderDrawColor(renderer, 161, 161, 151, 255);
     if(voidToLeft) {
         SDL_RenderLine(renderer, dest.x, dest.y, dest.x, dest.y + dest.h - 1);
@@ -1194,6 +1301,7 @@ void render_game() {
 
 void do_reset() {
     generate_first_piece();
+    SDL_memset(time_spent_at_level, 0, sizeof time_spent_at_level);
     SDL_memset(field, 0, sizeof field);
     game_state = STATE_WAIT;
     game_state_ctr = 60;
@@ -1209,6 +1317,7 @@ void do_reset() {
 }
 
 void update_details() {
+    if (level < 0xFFFF) time_spent_at_level[level]++;
     game_details.total_frames++;
     if (!in_roll && level >= (game_details.current_section + 1) * 100) {
         game_details.current_section++;
@@ -1282,6 +1391,7 @@ bool state_machine_tick() {
             play_sound(&ready_sound);
             current_timing = GAME_TIMINGS;
             check_garbage();
+            check_effect();
             level = 0;
         }
     } else if (game_state == STATE_BEGIN) {
@@ -1303,6 +1413,7 @@ bool state_machine_tick() {
         game_state_ctr--;
         if (game_state_ctr <= 0) {
             if (!first_piece) increment_level_piece_spawn();
+            if (game_state != STATE_ARE) return true;
             first_piece = false;
             generate_next_piece();
             if (piece_collides(current_piece) != -1) {
@@ -1389,7 +1500,7 @@ bool state_machine_tick() {
         if (game_state_ctr != 0) return true;
         current_piece.type = BLOCK_VOID;
         check_clears();
-        if (game_state == STATE_FADEOUT) return true;
+        if (game_state != STATE_LOCKFLASH) return true;
         if (lines_cleared != 0) {
             play_sound(&lineclear_sound);
             wipe_cleared();
