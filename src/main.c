@@ -887,7 +887,7 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             break;
         case LOCK_GHOST:
             mod = 0.8f;
-            moda = TRANSPARENCY ? 0.125f : 0.25f;
+            moda = 0.25f;
             voidToLeft = voidToRight = voidAbove = voidBelow = false;
             if (TRANSPARENCY) {
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 32);
