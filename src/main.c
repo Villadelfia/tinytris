@@ -1106,6 +1106,8 @@ void render_details() {
     total_seconds %= 60;
 
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE*2.0f, (float)RENDER_SCALE*2.0f);
+    if ((current_timing->g >= 5120 || mode_20g) && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, 255);
+    else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+24)/2, (FIELD_Y_OFFSET+310)/2, "%03d:%02d.%02d", total_minutes, total_seconds, total_cs);
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
 }
