@@ -1,18 +1,15 @@
 # Tinytris
-
-A minimal implementation of a TGM2-like tetris game, with some modern amenities.
+A minimal implementation of a TGM-like tetris game, with some modern amenities.
 
 - 180° IRS is possible by holding A and C during ARE.
 - The rotation system can be switched between TGM2 and TGM3 mode.
 - A hard drop button as well as a sonic drop button are provided.
-- Infinite speed curve, with the first 999 levels matching TAP Master mode.
 - Automatic pause on focus loss and short delay before restarting.
 
 Intended to be played while doing other things.
 
 ## Controls
-
-Controls can be rebound in `config.ini`. Defaults will be used if this file is absent.
+Controls can be rebound in `config.ini`. These are the defaults:
 
 - `A/D`: Left/right
 - `W`: Sonic drop
@@ -20,6 +17,7 @@ Controls can be rebound in `config.ini`. Defaults will be used if this file is a
 - `U`: Hard drop
 - `J/L`: Rotate CCW
 - `K`: Rotate CW
+- `M`: Hold
 - `R`: Restart game
 - `Enter`: Begin game
 - `ESC`: Quit game
@@ -29,6 +27,8 @@ Controls can be rebound in `config.ini`. Defaults will be used if this file is a
 - `P`: Mute/unmute
 - `T`: Toggle transparency of the field
 - `F1`: Toggle display of detailed timer splits
+
+Game controllers are supported as well. The title screen will display the default bindings as applied to the connected first controller.
 
 ## Replacing graphics
 The main skin for the blocks can be replaced by providing a file named `block.png` in a `data` directory alongside the game exe.
@@ -52,6 +52,7 @@ All of the built-in sounds can be overridden by providing specific ogg files in 
 - `irs.ogg`: Played when a piece spawns with initial rotation applied.
 - `ready.ogg`: Played at the start of the new game countdown.
 - `go.ogg`: Played at the end of the new game countdown.
+- `hold.ogg`: Played when holding a piece.
 
 In addition, several sounds are supported but are not included by default:
 
@@ -71,33 +72,15 @@ In addition, several sounds are supported but are not included by default:
 - `complete.ogg`: Played when completing a game.
 
 ## Music
-Music is supported. The game will look for the following songs in the data directory by default:
-
-- `menu_h.ogg`: Intro of the menu song.
-- `menu_b.ogg`: Looping part of the menu song.
-- `section_0_h.ogg`: Intro of the song played from 0-280.
-- `section_0_b.ogg`: Looping part of the song played from 0-280.
-- `section_1_h.ogg`: Intro of the song played from 300-480.
-- `section_1_b.ogg`: Looping part of the song played from 300-480.
-- `section_2_h.ogg`: Intro of the song played from 500-680.
-- `section_2_b.ogg`: Looping part of the song played from 500-680.
-- `section_3_h.ogg`: Intro of the song played from 700-980.
-- `section_3_b.ogg`: Looping part of the song played from 700-980.
-- `section_4_h.ogg`: Intro of the song played from 1000+.
-- `section_4_b.ogg`: Looping part of the song played from 1000+.
-
-Songs and sections can be reconfigured in `config.ini`.
+Music is supported. Songs and sections can be reconfigured in `config.ini`.
 
 ## Other settings
-
 Several other settings can be adjusted from their default values in `config.ini`.
 
 ## Speed timings
-
 The speed curves are defined in `timings*.ini`.
 
 You can alter these, or create more to add modes.
 
 ## Features
-
 You just play. If you need to pause, just click away and the game will pause.
