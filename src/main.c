@@ -16,6 +16,7 @@ static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Gamepad *gamepad = NULL;
 static SDL_Texture *block_texture = NULL;
+static SDL_Texture *border_texture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
 static SDL_AudioStream *music = NULL;
 #define FRAME_TIME (SDL_NS_PER_SECOND / SDL_SINT64_C(60))
@@ -1373,33 +1374,17 @@ void render_game() {
     SDL_RenderFillRect(renderer, &dst);
 
     // Field border.
-    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetRenderDrawColorFloat(renderer, 0.9f, 0.1f, 0.1f, TRANSPARENCY ? 0.8f : 1.0f);
-    else SDL_SetRenderDrawColorFloat(renderer, border_r, border_g, border_b, TRANSPARENCY ? 0.8f : 1.0f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET - 8, .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
-    SDL_RenderFillRect(renderer, &dst);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (10.0f * 16.0f), .y = FIELD_Y_OFFSET - 8, .w = 8.0f, .h = 16.0f * 21.0f};
-    SDL_RenderFillRect(renderer, &dst);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET - 8, .w = 16.0f * 10.0f, .h = 8.0f};
-    SDL_RenderFillRect(renderer, &dst);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET, .y = FIELD_Y_OFFSET + (20.0f * 16.0f), .w = 16.0f * 10.0f, .h = 8.0f};
-    SDL_RenderFillRect(renderer, &dst);
+    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetTextureColorModFloat(border_texture, 0.9f, 0.1f, 0.1f);
+    else SDL_SetTextureColorModFloat(border_texture, border_r, border_g, border_b);
+    dst = (SDL_FRect){.x = FIELD_X_OFFSET - 16, .y = FIELD_Y_OFFSET - 16, .w = 96.0f*2, .h = 176.0f*2};
+    SDL_RenderTexture(renderer, border_texture, NULL, &dst);
 
     // Background for next.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 8, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 16, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 6, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 12, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 4, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 8, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - 2, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + 4, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.1f);
-    dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f), .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f, .h = 2.0f * 16.0f + 8};
-    SDL_RenderFillRect(renderer, &dst);
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.05f);
+    for (int i = 0; i < 19; i++) {
+        dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - (float)i, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + (float)(2*i), .h = 2.0f * 16.0f + 8};
+        SDL_RenderFillRect(renderer, &dst);
+    }
 
     // Render the game.
     render_field();
@@ -1808,6 +1793,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
     // Load the image for a block.
     block_texture = load_image("data/block.png", block, sizeof block);
+    border_texture = load_image("data/border.png", border, sizeof border);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);

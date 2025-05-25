@@ -1,6 +1,7 @@
 #pragma once
 
 #include "assets/block.h"
+#include "assets/border.h"
 #include "assets/lineclear.h"
 #include "assets/linecollapse.h"
 #include "assets/pieceland.h"
