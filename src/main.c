@@ -56,8 +56,6 @@ bool section_locked = false;
 int previous_clears = 0;
 bool first_piece = true;
 bool intro = true;
-bool mode_20g = false;
-int mode_invis = false;
 bool in_roll = false;
 bool can_hold = true;
 int in_roll_remaining = 0;
@@ -70,6 +68,7 @@ bool show_edge_during_lockflash = false;
 int32_t show_edge_timer = 0;
 bool use_tgm2_plus_sequence = false;
 int sequence_index = 0;
+int locked_settings[SETTINGS_COUNT] = {0};
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -110,11 +109,8 @@ int32_t button_scale_down_held = 0;
 int32_t button_mute_held = 0;
 int32_t button_mystery_held = 0;
 int32_t button_hard_drop_held = 0;
-int32_t button_toggle_rotation_system_held = 0;
 int32_t button_toggle_transparency_held = 0;
 int32_t button_details_held = 0;
-int32_t button_20g_held = 0;
-int32_t button_invis_held = 0;
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -186,12 +182,9 @@ void update_input_states() {
 
     update_input_state(state, BUTTON_SCALE_UP, GAMEPAD_SCALE_UP, &button_scale_up_held);
     update_input_state(state, BUTTON_SCALE_DOWN, GAMEPAD_SCALE_DOWN, &button_scale_down_held);
-    update_input_state(state, BUTTON_TOGGLE_ROTATION_SYSTEM, GAMEPAD_TOGGLE_ROTATION_SYSTEM, &button_toggle_rotation_system_held);
     update_input_state(state, BUTTON_TOGGLE_TRANSPARENCY, GAMEPAD_TOGGLE_TRANSPARENCY, &button_toggle_transparency_held);
     update_input_state(state, BUTTON_MUTE, GAMEPAD_MUTE, &button_mute_held);
     update_input_state(state, BUTTON_DETAILS, GAMEPAD_DETAILS, &button_details_held);
-    update_input_state(state, BUTTON_20G, GAMEPAD_20G, &button_20g_held);
-    update_input_state(state, BUTTON_INVIS, GAMEPAD_INVIS, &button_invis_held);
 
     update_input_state(state, BUTTON_MYSTERY, GAMEPAD_MYSTERY, &button_mystery_held);
 }
@@ -535,7 +528,7 @@ void try_rotate(const int direction) {
     }
 
     if (active.type == BLOCK_I) {
-        if (!TI_ARS) return;
+        if (get_setting_value(ROTATION_SETTING_IDX) == 0) return;
         if (touching_stack() && (active.rotation_state == 0 || active.rotation_state == 2)) {
             // I -> right
             active.x += 1;
@@ -595,7 +588,7 @@ void try_rotate(const int direction) {
         }
 
         // T -> up
-        if (!TI_ARS) return;
+        if (get_setting_value(ROTATION_SETTING_IDX) == 0) return;
         if (current_piece.type == BLOCK_T && piece_grounded()) {
             active.x += 1;
             active.y -= 1;
@@ -681,7 +674,7 @@ void collapse_clears() {
 }
 
 int get_gravity() {
-    if (mode_20g) return 5120;
+    if (get_setting_value(GRAVITY_SETTING_IDX) == 1) return 5120;
     return current_timing->g;
 }
 
@@ -693,7 +686,7 @@ block_type_t generate_piece() {
 
 block_type_t generate_valid_piece() {
     block_type_t result = BLOCK_VOID;
-    if (TI_RNG) {
+    if (get_setting_value(RNG_SETTING_IDX) == 2) {
         block_type_t droughted_piece = BLOCK_VOID;
         int bagpos = 0;
         int longest_drought = 0;
@@ -746,7 +739,7 @@ block_type_t generate_valid_piece() {
     } else {
         result = generate_piece();
         int tries = 1;
-        while(tries++ < 6) {
+        while(tries++ < (get_setting_value(RNG_SETTING_IDX) == 0 ? 4 : 6)) {
             if(result != history[0] && result != history[1] && result != history[2] && result != history[3]) {
                 break;
             } else {
@@ -840,7 +833,7 @@ void generate_next_piece() {
     current_piece.floor_kicked = false;
 
     // Apply IHS.
-    if (IS_HELD(button_hold_held)) do_hold(true);
+    if (IS_HELD(button_hold_held) && get_setting_value(HOLD_SETTING_IDX) == 1) do_hold(true);
 
     // Apply IRS.
     if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 1;
@@ -873,8 +866,8 @@ void generate_next_piece() {
 
 void generate_first_piece() {
     history[1] = BLOCK_Z;
-    history[2] = BLOCK_S;
-    history[3] = BLOCK_S;
+    history[2] = get_setting_value(RNG_SETTING_IDX) == 0 ? BLOCK_Z : BLOCK_S;
+    history[3] = get_setting_value(RNG_SETTING_IDX) == 0 ? BLOCK_Z : BLOCK_S;
     for (int i = 0; i < 35; i++) bag[i] = (i/5)+2;
 
     histogram[0] = 4;
@@ -1008,7 +1001,7 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     if (moda > 0.0f) SDL_RenderTexture(renderer, block_texture, &src, &dest);
 
     bool should_draw_edges = false;
-    if (current_timing->fade == 0 && mode_invis == 0) should_draw_edges = true;
+    if (current_timing->fade == 0 && get_setting_value(INVISIBILITY_SETTING_IDX) == 0) should_draw_edges = true;
     if (!should_draw_edges && game_state == STATE_GAMEOVER) should_draw_edges = true;
     if (!should_draw_edges && game_state == STATE_FADEOUT) should_draw_edges = true;
     if (!should_draw_edges && show_edge_during_lockflash && game_state == STATE_LOCKFLASH) should_draw_edges = true;
@@ -1036,13 +1029,13 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
 }
 
 float update_and_get_fade_state(block_t *block) {
-    if (mode_invis == 0 && current_timing->fade == 0) {
+    if (get_setting_value(INVISIBILITY_SETTING_IDX) == 0 && current_timing->fade == 0) {
         block->fade_state = 1.0f;
         block->fading = false;
-    } else if (mode_invis == 2 || current_timing->fade == 1) {
+    } else if (get_setting_value(INVISIBILITY_SETTING_IDX) == 2 || current_timing->fade == 1) {
         block->fade_state = 0.0f;
         block->fading = true;
-    } else if (mode_invis == 1 || current_timing->fade > 1) {
+    } else if (get_setting_value(INVISIBILITY_SETTING_IDX) == 1 || current_timing->fade > 1) {
         int delay = 256;
         if (current_timing->fade > 1 && current_timing->fade < 256) delay = current_timing->fade;
         if (game_details.total_frames - block->locked_at > delay) block->fading = true;
@@ -1219,7 +1212,15 @@ void render_details() {
     else SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 14, " %04d      %2dG      %02df", level, get_gravity()/256, current_timing->lock);
     SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 30, "DAS  ARE  LN-ARE  CLEAR");
     SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 40, "%2df  %2df     %2df    %2df", current_timing->das, current_timing->are, current_timing->line_are, current_timing->clear);
-    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 56, "[%6s] [%3s] [%6s]", TI_ARS ? "Ti-ARS" : "TAP   ", mode_20g ? "20G" : "---", mode_invis == 0 ? "NORMAL" : mode_invis == 1 ? "FADING" : "INVISI");
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 56, "Mode: [%dk%dr%dp%ch%sg%4s]",
+        locked_settings[ROTATION_SETTING_IDX] == 0 ? 1 : 3,
+        locked_settings[RNG_SETTING_IDX] + 1,
+        locked_settings[PREVIEWS_SETTING_IDX],
+        locked_settings[HOLD_SETTING_IDX] == 0 ? 'N' : 'Y',
+        locked_settings[GRAVITY_SETTING_IDX] == 0 ? "--" : "20",
+        locked_settings[INVISIBILITY_SETTING_IDX] == 0 ? "----" : locked_settings[INVISIBILITY_SETTING_IDX] == 1 ? "fade" : "invi"
+    );
+    SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), 66, "Hash: %s", MODE_HASH);
 
     SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+4), (FIELD_Y_OFFSET+4), "SECTION            TIME");
 
@@ -1259,7 +1260,7 @@ void render_details() {
     total_seconds %= 60;
 
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE*2.0f, (float)RENDER_SCALE*2.0f);
-    if ((current_timing->g >= 5120 || mode_20g) && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, 255);
+    if ((current_timing->g >= 5120 || get_setting_value(GRAVITY_SETTING_IDX) == 1) && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, 255);
     else SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderDebugTextFormat(renderer, (FIELD_X_OFFSET+(12*16)+24)/2, (FIELD_Y_OFFSET+310)/2, "%03d:%02d.%02d", total_minutes, total_seconds, total_cs);
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
@@ -1403,9 +1404,9 @@ void render_game() {
     // Render the game.
     render_field();
     render_held_block();
-    render_next_block(0);
-    render_next_block(1);
-    render_next_block(2);
+    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) render_next_block(0);
+    if (get_setting_value(PREVIEWS_SETTING_IDX) > 1) render_next_block(1);
+    if (get_setting_value(PREVIEWS_SETTING_IDX) > 2) render_next_block(2);
     render_tls();
     render_current_block();
     render_details();
@@ -1413,14 +1414,23 @@ void render_game() {
     // A bit of info.
     SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
     SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-    if (!DETAILS) SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + (20.0f * 16.0f) + 2) * 2 , "[LVL:%04d][GRV:%06.3f][DAS:%02d][LCK:%02d][%s]", level, (float)get_gravity()/256.0f, current_timing->das, current_timing->lock, TI_ARS ? "Ti " : "TAP");
 
     if (game_state == STATE_WAIT) {
+        float y_offset = FIELD_Y_OFFSET+4.0f;
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
-        if (MODES_COUNT > 1) SDL_RenderDebugTextFormat(renderer, 21.0f, (FIELD_Y_OFFSET + 16.0f) , "< %15s >", GAME_TIMINGS_NAME);
+        for (int i = 0; i < SETTINGS_COUNT; ++i) {
+            if (selected_setting == i) {
+                SDL_SetRenderDrawColorFloat(renderer, 1, 1, 0, 1.0f);
+                SDL_RenderDebugTextFormat(renderer, 21.0f, y_offset, "< %-15s >", get_settings_description(i));
+            } else {
+                SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
+                SDL_RenderDebugTextFormat(renderer, 21.0f, y_offset, "  %-15s  ", get_settings_description(i));
+            }
+            y_offset += 9.0f;
+        }
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
 
-        float y_offset = 3.0f;
+        y_offset = 5.5f;
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
 
         y_offset += 0.5f;
@@ -1447,21 +1457,16 @@ void render_game() {
         y_offset += 0.5f;
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Quit game", SDL_GetScancodeName(BUTTON_QUIT));
         y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Toggle rotation system", SDL_GetScancodeName(BUTTON_TOGGLE_ROTATION_SYSTEM));
-        y_offset += 0.5f;
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Scale down", SDL_GetScancodeName(BUTTON_SCALE_DOWN));
         y_offset += 0.5f;
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Scale up", SDL_GetScancodeName(BUTTON_SCALE_UP));
         y_offset += 0.5f;
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Mute/unmute", SDL_GetScancodeName(BUTTON_MUTE));
         y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Toggle background transparency", SDL_GetScancodeName(BUTTON_TOGGLE_TRANSPARENCY));
-        y_offset += 0.5f;
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Toggle details pane", SDL_GetScancodeName(BUTTON_DETAILS));
         y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Toggle 20G", SDL_GetScancodeName(BUTTON_20G));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Toggle normal/fading/invisible", SDL_GetScancodeName(BUTTON_INVIS));
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Toggle background transparency", SDL_GetScancodeName(BUTTON_TOGGLE_TRANSPARENCY));
+
 
         y_offset += 0.5f;
         y_offset += 0.5f;
@@ -1543,18 +1548,6 @@ bool state_machine_tick() {
     // Transparency?
     if (IS_JUST_HELD(button_toggle_transparency_held)) TRANSPARENCY = !TRANSPARENCY;
 
-    // 20G?
-    if (IS_JUST_HELD(button_20g_held)) mode_20g = !mode_20g;
-
-    // Invis?
-    if (IS_JUST_HELD(button_invis_held)) {
-        mode_invis++;
-        mode_invis %= 3;
-    }
-
-    // ARS/Ti ARS?
-    if (IS_JUST_HELD(button_toggle_rotation_system_held)) TI_ARS = !TI_ARS;
-
     // Huh?
     if (IS_JUST_HELD(button_mystery_held)) mystery = !mystery;
 
@@ -1575,8 +1568,10 @@ bool state_machine_tick() {
 
     // Do all the logic.
     if (game_state == STATE_WAIT) {
-        if (IS_JUST_HELD(button_l_held) && MODES_COUNT > 1) change_mode(-1);
-        if (IS_JUST_HELD(button_r_held) && MODES_COUNT > 1) change_mode(1);
+        if (IS_JUST_HELD(button_l_held)) change_setting(selected_setting, -1);
+        if (IS_JUST_HELD(button_r_held)) change_setting(selected_setting, 1);
+        if (IS_JUST_HELD(button_u_held)) change_selected_setting(-1);
+        if (IS_JUST_HELD(button_d_held)) change_selected_setting(1);
         if (IS_JUST_HELD(button_start_held)) {
             game_state = STATE_BEGIN;
             game_state_ctr = 60;
@@ -1585,6 +1580,8 @@ bool state_machine_tick() {
             check_garbage();
             check_effect();
             level = 0;
+            for (int i = 0; i < SETTINGS_COUNT; ++i) locked_settings[i] = settings_values[i];
+            calculate_mode_hash();
         }
     } else if (game_state == STATE_BEGIN) {
         game_state_ctr--;
@@ -1625,7 +1622,7 @@ bool state_machine_tick() {
         const bool was_grounded = piece_grounded();
 
         // Hold.
-        if (can_hold && IS_JUST_HELD(button_hold_held)) {
+        if (can_hold && get_setting_value(HOLD_SETTING_IDX) == 1 && IS_JUST_HELD(button_hold_held)) {
             do_hold(false);
             return true;
         }
@@ -1790,6 +1787,8 @@ void load_sound(sound_t *target, const char* file, const void* fallback, const s
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     load_config();
+    for (int i = 0; i < SETTINGS_COUNT; ++i) locked_settings[i] = settings_values[i];
+    calculate_mode_hash();
 
     seed_rng();
     generate_first_piece();

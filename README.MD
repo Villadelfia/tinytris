@@ -3,6 +3,7 @@ A minimal implementation of a TGM-like tetris game, with some modern amenities.
 
 - 180° IRS is possible by holding A and C during ARE.
 - The rotation system can be switched between TGM2 and TGM3 mode.
+- The RNG mode can be switched between TGM1, 2, and 3 modes.
 - A hard drop button as well as a sonic drop button are provided.
 - Automatic pause on focus loss and short delay before restarting.
 
@@ -12,8 +13,8 @@ Intended to be played while doing other things.
 Controls can be rebound in `config.ini`. These are the defaults:
 
 - `A/D`: Left/right
-- `W`: Sonic drop
-- `S`: Soft drop
+- `W`: Sonic drop/up
+- `S`: Soft drop/down
 - `U`: Hard drop
 - `J/L`: Rotate CCW
 - `K`: Rotate CW
@@ -21,12 +22,11 @@ Controls can be rebound in `config.ini`. These are the defaults:
 - `R`: Restart game
 - `Enter`: Begin game
 - `ESC`: Quit game
-- `0`: Toggle between Classic ARS and Ti ARS, shown as `[TAP]` and `[Ti ]` respectively
 - `-`: Scale down
 - `=`: Scale up
 - `P`: Mute/unmute
-- `T`: Toggle transparency of the field
-- `F1`: Toggle display of detailed timer splits
+- `F1`: Toggle display of details pane
+- `F2`: Toggle transparency of the field
 
 Game controllers are supported as well. The title screen will display the default bindings as applied to the connected first controller.
 
@@ -82,5 +82,26 @@ The speed curves are defined in `timings*.ini`.
 
 You can alter these, or create more to add modes.
 
-## Features
-You just play. If you need to pause, just click away and the game will pause.
+## Details Pane
+The details pane shows your section splits for the current game. It will remain after you top out and only clear when you start a new game.
+
+In addition to the splits, it also shows:
+
+- Level: Your current level, using TGM1/2 calculations.
+- Gravity: Amount of cells a piece moves down every frame.
+- Lockdel: The delay between a piece touching the ground and locking in place.
+- DAS: How many frames you need to keep the left or right button held to automatically keep moving in that direction.
+- ARE: Time in frames between one piece locking and the next one spawning.
+- LN-ARE: Time in frames for the ARE when line was just cleared.
+- Clear: Time in frames between the lines cleared disappearing, and the stack compacting down.
+- Mode: A special string that can be used to identify the settings used to play that game.
+- Hash: A unique hash identifying the speed curve selected. The name is not taking into account, only the values.
+
+The mode string has the following elements, in this order:
+
+- `Nk`: Which kicks are used. `1k` for TGM1/2 rotation, `3k` for TGM3 rotation.
+- `Nr`: Which RNG is used. `1r`, `2r`, and `3r` stand for their respective TGM games.
+- `Np`: How many previews were visible. `0p` to `3p`.
+- `Xh`: If hold was enabled. `Nh` for no, `Yh` for yes.
+- `XXg`: Gravity mode. `--g` for regular gravity, `20g` for forced 20g.
+- `XXXX`: Piece visibility. `----` for regular visibility, `fade` for fading pieces, `invi` for invisible pieces.

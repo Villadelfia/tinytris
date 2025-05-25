@@ -6,6 +6,7 @@
 #include "stb_vorbis.h"
 #include "game_types.h"
 #include "game_data.h"
+#include "sha1.h"
 
 int32_t BUTTON_LEFT = SDL_SCANCODE_A;
 int32_t BUTTON_RIGHT = SDL_SCANCODE_D;
@@ -21,13 +22,10 @@ int32_t BUTTON_START = SDL_SCANCODE_RETURN;
 int32_t BUTTON_QUIT = SDL_SCANCODE_ESCAPE;
 int32_t BUTTON_SCALE_UP = SDL_SCANCODE_EQUALS;
 int32_t BUTTON_SCALE_DOWN = SDL_SCANCODE_MINUS;
-int32_t BUTTON_TOGGLE_ROTATION_SYSTEM = SDL_SCANCODE_0;
 int32_t BUTTON_MUTE = SDL_SCANCODE_P;
 int32_t BUTTON_MYSTERY = SDL_SCANCODE_KP_MINUS;
-int32_t BUTTON_TOGGLE_TRANSPARENCY = SDL_SCANCODE_T;
 int32_t BUTTON_DETAILS = SDL_SCANCODE_F1;
-int32_t BUTTON_20G = SDL_SCANCODE_F2;
-int32_t BUTTON_INVIS = SDL_SCANCODE_F3;
+int32_t BUTTON_TOGGLE_TRANSPARENCY = SDL_SCANCODE_F2;
 
 int32_t GAMEPAD_LEFT = SDL_GAMEPAD_BUTTON_DPAD_LEFT;
 int32_t GAMEPAD_RIGHT = SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
@@ -43,19 +41,14 @@ int32_t GAMEPAD_START = SDL_GAMEPAD_BUTTON_START;
 int32_t GAMEPAD_QUIT = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_SCALE_UP = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_SCALE_DOWN = SDL_GAMEPAD_BUTTON_INVALID;
-int32_t GAMEPAD_TOGGLE_ROTATION_SYSTEM = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MUTE = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MYSTERY = SDL_GAMEPAD_BUTTON_INVALID;
-int32_t GAMEPAD_TOGGLE_TRANSPARENCY = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_DETAILS = SDL_GAMEPAD_BUTTON_INVALID;
-int32_t GAMEPAD_20G = SDL_GAMEPAD_BUTTON_INVALID;
-int32_t GAMEPAD_INVIS = SDL_GAMEPAD_BUTTON_INVALID;
+int32_t GAMEPAD_TOGGLE_TRANSPARENCY = SDL_GAMEPAD_BUTTON_INVALID;
 
 int RENDER_SCALE = 2;
 bool TRANSPARENCY = true;
 bool MUTED = false;
-bool TI_ARS = true;
-bool TI_RNG = true;
 float BGM_VOLUME = 0.6f;
 float SFX_VOLUME = 1.0f;
 float FADE_TIME = 60.0f;
@@ -76,19 +69,101 @@ typedef struct {
     char* name;
     timing_t *game_timings;
     timing_t credits_roll_timings;
+    size_t count;
 } game_mode_t;
 
 int32_t MODES_COUNT = 0;
-int32_t SELECTED_MODE = 0;
 game_mode_t *MODES = NULL;
 int32_t SECTION_COUNT = 0;
 section_music_t *SECTIONS = NULL;
 section_music_t TITLE_MUSIC = {0};
 section_music_t CREDITS_ROLL_MUSIC = {0};
-char* GAME_TIMINGS_NAME = NULL;
+char *GAME_TIMINGS_NAME_TEMP = NULL;
 size_t GAME_TIMINGS_COUNT = 0;
 timing_t *GAME_TIMINGS = NULL;
 timing_t CREDITS_ROLL_TIMING = {.level = INT32_MAX};
+char MODE_HASH[41] = {0};
+
+#define MODE_SETTING_IDX 0
+#define ROTATION_SETTING_IDX 1
+#define RNG_SETTING_IDX 2
+#define PREVIEWS_SETTING_IDX 3
+#define HOLD_SETTING_IDX 4
+#define GRAVITY_SETTING_IDX 5
+#define INVISIBILITY_SETTING_IDX 6
+#define SETTINGS_COUNT 7
+
+int selected_setting = 0;
+int settings_values[SETTINGS_COUNT] = {
+    0, // Selected mode
+    1, // Rotation system
+    2, // RNG mode
+    3, // Previews
+    1, // Hold enabled
+    0, // 20G mode
+    0  // Invisibility
+};
+int settings_limits[SETTINGS_COUNT] = {
+    0,
+    2,
+    3,
+    4,
+    2,
+    2,
+    3
+};
+char *settings_strings[SETTINGS_COUNT][4] = {
+    // Modes are stored elsewhere.
+    {"", "", "", ""},
+
+    // Rotation.
+    {
+        "Kicks: TGM1/2",
+        "Kicks: TGM3",
+        "",
+        ""
+    },
+
+    // RNG.
+    {
+        "RNG: TGM1",
+        "RNG: TGM2",
+        "RNG: TGM3",
+        ""
+    },
+
+    // Previews.
+    {
+        "Previews: 0",
+        "Previews: 1",
+        "Previews: 2",
+        "Previews: 3"
+    },
+
+    // Hold
+    {
+        "Holds: Off",
+        "Holds: On",
+        "",
+        "",
+    },
+
+    // Gravity
+    {
+        "Gravity: Normal",
+        "Gravity: 20G",
+        "",
+        ""
+    },
+
+    // Visibility
+    {
+        "Vision: Normal",
+        "Vision: Fading",
+        "Vision: Invis.",
+        ""
+    }
+};
 
 static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16_t **head_data, uint32_t *head_data_len, SDL_AudioSpec *body_format, int16_t **body_data, uint32_t *body_data_len) {
     // Build the new strings.
@@ -224,7 +299,7 @@ static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16
 static int parse_timing(void* user, const char* section, const char* name, const char* value) {
     if (SDL_strcasecmp(section, "timing") == 0) {
         if (SDL_strcasecmp(name, "name") == 0) {
-            GAME_TIMINGS_NAME = SDL_strndup(value, SDL_strlen(value));
+            GAME_TIMINGS_NAME_TEMP = SDL_strndup(value, SDL_strlen(value));
             return 1;
         }
         char *end = NULL, *temp = NULL;
@@ -328,13 +403,10 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "quit") == 0) BUTTON_QUIT = s;
         if (SDL_strcasecmp(name, "scale_up") == 0) BUTTON_SCALE_UP = s;
         if (SDL_strcasecmp(name, "scale_down") == 0) BUTTON_SCALE_DOWN = s;
-        if (SDL_strcasecmp(name, "toggle_rotation_system") == 0) BUTTON_TOGGLE_ROTATION_SYSTEM = s;
         if (SDL_strcasecmp(name, "mute") == 0) BUTTON_MUTE = s;
         if (SDL_strcasecmp(name, "mystery") == 0) BUTTON_MYSTERY = s;
         if (SDL_strcasecmp(name, "toggle_transparency") == 0) BUTTON_TOGGLE_TRANSPARENCY = s;
         if (SDL_strcasecmp(name, "toggle_details") == 0) BUTTON_DETAILS = s;
-        if (SDL_strcasecmp(name, "toggle_20g") == 0) BUTTON_20G = s;
-        if (SDL_strcasecmp(name, "toggle_invis") == 0) BUTTON_INVIS = s;
     }
 
     if (SDL_strcasecmp(section, "gamepad") == 0) {
@@ -353,13 +425,10 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "quit") == 0) GAMEPAD_QUIT = s;
         if (SDL_strcasecmp(name, "scale_up") == 0) GAMEPAD_SCALE_UP = s;
         if (SDL_strcasecmp(name, "scale_down") == 0) GAMEPAD_SCALE_DOWN = s;
-        if (SDL_strcasecmp(name, "toggle_rotation_system") == 0) GAMEPAD_TOGGLE_ROTATION_SYSTEM = s;
         if (SDL_strcasecmp(name, "mute") == 0) GAMEPAD_MUTE = s;
         if (SDL_strcasecmp(name, "mystery") == 0) GAMEPAD_MYSTERY = s;
         if (SDL_strcasecmp(name, "toggle_transparency") == 0) GAMEPAD_TOGGLE_TRANSPARENCY = s;
         if (SDL_strcasecmp(name, "toggle_details") == 0) GAMEPAD_DETAILS = s;
-        if (SDL_strcasecmp(name, "toggle_20g") == 0) GAMEPAD_20G = s;
-        if (SDL_strcasecmp(name, "toggle_invis") == 0) GAMEPAD_INVIS = s;
     }
 
     if (SDL_strcasecmp(section, "music") == 0) {
@@ -396,13 +465,29 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "render_scale") == 0) RENDER_SCALE = v;
         if (SDL_strcasecmp(name, "transparent_field") == 0) TRANSPARENCY = v != 0;
         if (SDL_strcasecmp(name, "audio_enabled") == 0) MUTED = v == 0;
-        if (SDL_strcasecmp(name, "tgm3_kicks") == 0) TI_ARS = v != 0;
-        if (SDL_strcasecmp(name, "tgm3_rng") == 0) TI_RNG = v != 0;
         if (SDL_strcasecmp(name, "bgm_volume") == 0) BGM_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "sfx_volume") == 0) SFX_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "fade_time") == 0) FADE_TIME = (float)v;
         if (SDL_strcasecmp(name, "details_open") == 0) DETAILS = v != 0;
         if (SDL_strcasecmp(name, "field_transparency") == 0) FIELD_TRANSPARENCY = (float)v/100.0f;
+        if (SDL_strcasecmp(name, "rotation_system") == 0) settings_values[ROTATION_SETTING_IDX] = v == 0 ? 0 : 1;
+        if (SDL_strcasecmp(name, "rng_mode") == 0) {
+            settings_values[RNG_SETTING_IDX] = v;
+            if (settings_values[RNG_SETTING_IDX] < 0) settings_values[RNG_SETTING_IDX] = 0;
+            if (settings_values[RNG_SETTING_IDX] >= settings_limits[RNG_SETTING_IDX]) settings_values[RNG_SETTING_IDX] = settings_limits[RNG_SETTING_IDX]-1;
+        }
+        if (SDL_strcasecmp(name, "preview_count") == 0) {
+            settings_values[PREVIEWS_SETTING_IDX] = v;
+            if (settings_values[PREVIEWS_SETTING_IDX] < 0) settings_values[PREVIEWS_SETTING_IDX] = 0;
+            if (settings_values[PREVIEWS_SETTING_IDX] >= settings_limits[PREVIEWS_SETTING_IDX]) settings_values[PREVIEWS_SETTING_IDX] = settings_limits[PREVIEWS_SETTING_IDX]-1;
+        }
+        if (SDL_strcasecmp(name, "hold_enabled") == 0) settings_values[HOLD_SETTING_IDX] = v == 0 ? 0 : 1;
+        if (SDL_strcasecmp(name, "20g_mode") == 0) settings_values[GRAVITY_SETTING_IDX] = v == 0 ? 0 : 1;
+        if (SDL_strcasecmp(name, "invisibility_mode") == 0) {
+            settings_values[INVISIBILITY_SETTING_IDX] = v;
+            if (settings_values[INVISIBILITY_SETTING_IDX] < 0) settings_values[INVISIBILITY_SETTING_IDX] = 0;
+            if (settings_values[INVISIBILITY_SETTING_IDX] >= settings_limits[INVISIBILITY_SETTING_IDX]) settings_values[INVISIBILITY_SETTING_IDX] = settings_limits[INVISIBILITY_SETTING_IDX]-1;
+        }
     }
 
     return 1;
@@ -442,6 +527,7 @@ static inline void load_timings(const char* file) {
         SDL_qsort(GAME_TIMINGS, GAME_TIMINGS_COUNT, sizeof(timing_t), compare_timing);
         GAME_TIMINGS_COUNT++;
         GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
+        SDL_memset(&GAME_TIMINGS[GAME_TIMINGS_COUNT-1], 0, sizeof(timing_t));
         GAME_TIMINGS[GAME_TIMINGS_COUNT-1].level = -1;
     }
 }
@@ -456,38 +542,85 @@ static inline void load_config() {
     int count;
     char **files = SDL_GlobDirectory(".", "timings*.ini", SDL_GLOB_CASEINSENSITIVE, &count);
     for (int i = 0; i < count; i++) {
-        GAME_TIMINGS_NAME = NULL;
+        GAME_TIMINGS_NAME_TEMP = NULL;
         GAME_TIMINGS_COUNT = 0;
         GAME_TIMINGS = NULL;
+        SDL_memset(&CREDITS_ROLL_TIMING, 0, sizeof(timing_t));
         CREDITS_ROLL_TIMING.level = INT32_MAX;
 
         load_timings(files[i]);
 
-        if (GAME_TIMINGS_NAME != NULL && GAME_TIMINGS != NULL) {
+        if (GAME_TIMINGS_NAME_TEMP != NULL && GAME_TIMINGS != NULL) {
             MODES_COUNT++;
             MODES = SDL_realloc(MODES, MODES_COUNT * sizeof(game_mode_t));
             MODES[MODES_COUNT-1].credits_roll_timings = CREDITS_ROLL_TIMING;
-            MODES[MODES_COUNT-1].name = GAME_TIMINGS_NAME;
+            MODES[MODES_COUNT-1].name = GAME_TIMINGS_NAME_TEMP;
             MODES[MODES_COUNT-1].game_timings = GAME_TIMINGS;
+            MODES[MODES_COUNT-1].count = GAME_TIMINGS_COUNT;
         }
     }
 
-    if (count == 0 || MODES_COUNT == 0) {
-        GAME_TIMINGS_NAME = "Builtin";
+    if (count == 0) MODES_COUNT = 0;
+    settings_limits[MODE_SETTING_IDX] = MODES_COUNT;
+
+    if (MODES_COUNT == 0) {
         GAME_TIMINGS = default_game_timing;
         CREDITS_ROLL_TIMING = default_credits_roll_timing;
+        GAME_TIMINGS_COUNT = default_game_timing_len;
     } else {
-        GAME_TIMINGS_NAME = MODES[0].name;
         GAME_TIMINGS = MODES[0].game_timings;
         CREDITS_ROLL_TIMING = MODES[0].credits_roll_timings;
+        GAME_TIMINGS_COUNT = MODES[0].count;
     }
 }
 
-static inline void change_mode(const int direction) {
-    SELECTED_MODE += direction;
-    if (SELECTED_MODE < 0) SELECTED_MODE = MODES_COUNT-1;
-    if (SELECTED_MODE >= MODES_COUNT) SELECTED_MODE = 0;
-    GAME_TIMINGS_NAME = MODES[SELECTED_MODE].name;
-    GAME_TIMINGS = MODES[SELECTED_MODE].game_timings;
-    CREDITS_ROLL_TIMING = MODES[SELECTED_MODE].credits_roll_timings;
+static inline void change_setting(const int idx, const int direction) {
+    // Modes are a special case.
+    if (idx == MODE_SETTING_IDX) {
+        if (settings_limits[MODE_SETTING_IDX] == 0) return;
+        GAME_TIMINGS = MODES[settings_values[MODE_SETTING_IDX]].game_timings;
+        CREDITS_ROLL_TIMING = MODES[settings_values[MODE_SETTING_IDX]].credits_roll_timings;
+    }
+
+    settings_values[idx] += direction;
+    if (settings_values[idx] < 0) settings_values[idx] = settings_limits[idx]-1;
+    if (settings_values[idx] >= settings_limits[idx]) settings_values[idx] = 0;
+
+    // Modes are a special case.
+    if (idx == MODE_SETTING_IDX) {
+        GAME_TIMINGS = MODES[settings_values[MODE_SETTING_IDX]].game_timings;
+        CREDITS_ROLL_TIMING = MODES[settings_values[MODE_SETTING_IDX]].credits_roll_timings;
+        GAME_TIMINGS_COUNT = MODES[settings_values[MODE_SETTING_IDX]].count;
+    }
+}
+
+static inline void change_selected_setting(const int direction) {
+    selected_setting += direction;
+    if (selected_setting < 0) selected_setting = SETTINGS_COUNT-1;
+    if (selected_setting >= SETTINGS_COUNT) selected_setting = 0;
+}
+
+static inline int get_setting_value(const int idx) {
+    return settings_values[idx];
+}
+
+static inline char* get_settings_description(const int idx) {
+    // Modes are a special case.
+    if (idx == MODE_SETTING_IDX) {
+        if (settings_limits[MODE_SETTING_IDX] == 0) return "Builtin";
+        return MODES[settings_values[MODE_SETTING_IDX]].name;
+    }
+
+    return settings_strings[idx][settings_values[idx]];
+}
+
+static inline void calculate_mode_hash() {
+    uint8_t hash[SHA1_DIGEST_BYTE_LENGTH] = {0};
+    uint8_t* data = SDL_calloc(GAME_TIMINGS_COUNT, sizeof(timing_t));
+    SDL_memcpy(data, GAME_TIMINGS, sizeof(timing_t) * (GAME_TIMINGS_COUNT-1));
+    SDL_memcpy(data+(sizeof(timing_t) * (GAME_TIMINGS_COUNT-1)), &CREDITS_ROLL_TIMING, sizeof(timing_t));
+    sha1_digest(data, sizeof(timing_t)*GAME_TIMINGS_COUNT, hash);
+    for (size_t i = 0; i < SHA1_DIGEST_BYTE_LENGTH; i++) SDL_snprintf(MODE_HASH + (i*2), 2*SHA1_DIGEST_BYTE_LENGTH - (i*2), "%02X", hash[i]);
+    // Truncate at the point the screen runs out of space.
+    MODE_HASH[17] = '\0';
 }

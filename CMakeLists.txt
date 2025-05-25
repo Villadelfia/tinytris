@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 project(tinytris C)
 set(CMAKE_C_STANDARD 23)
-add_executable(tinytris src/main.c src/stb_vorbis.c)
+add_executable(tinytris src/main.c src/stb_vorbis.c src/sha1.c)
 if(WIN32)
     set_property(TARGET tinytris PROPERTY WIN32_EXECUTABLE TRUE)
 endif()
