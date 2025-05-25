@@ -1429,6 +1429,7 @@ void render_game() {
             y_offset += 9.0f;
         }
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
+        SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
 
         y_offset = 5.5f;
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
