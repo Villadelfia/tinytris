@@ -52,7 +52,7 @@ int level = 0;
 timing_t *current_timing;
 int accumulated_g = 0;
 int lines_cleared = 0;
-int clears[4] = {-1, -1, -1, -1};
+int clears[21] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 bool mystery = false;
 bool section_locked = false;
 int previous_clears = 0;
@@ -71,6 +71,8 @@ int32_t show_edge_timer = 0;
 bool use_tgm2_plus_sequence = false;
 int sequence_index = 0;
 int locked_settings[SETTINGS_COUNT] = {0};
+int frozen_rows = 0;
+bool frozen_ignore_next = false;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -113,6 +115,10 @@ int32_t button_mystery_held = 0;
 int32_t button_hard_drop_held = 0;
 int32_t button_toggle_transparency_held = 0;
 int32_t button_details_held = 0;
+
+void check_clears();
+void wipe_clears();
+void collapse_clears();
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -307,6 +313,9 @@ void check_effect() {
     bool invisibility_hint_once = (effect & INVISIBILITY_HINT_ONCE_MASK) != 0;
     bool invisibility_hint_flash = (effect & INVISIBILITY_HINT_FLASH_MASK) != 0;
     bool tgm2_plus_sequence = (effect & TGM2_PLUS_SEQUENCE_MASK) != 0;
+    int prev_frozen = frozen_rows;
+    frozen_rows = (effect & FROZEN_VALUE_MASK) >> FROZEN_VALUE_SHIFT;
+    frozen_ignore_next = (effect & FROZEN_RESET_MASK) != 0;
     if (torikan != 0) {
         bool hit_torikan = game_details.total_frames > torikan;
         if (torikan_scope) hit_torikan = time_spent(level-100, level) > torikan;
@@ -361,6 +370,20 @@ void check_effect() {
 
     if (tgm2_plus_sequence && !use_tgm2_plus_sequence) sequence_index = 0;
     use_tgm2_plus_sequence = tgm2_plus_sequence;
+
+    if ((frozen_rows != 0 && frozen_ignore_next) || (frozen_rows != 0 && prev_frozen > frozen_rows) || (prev_frozen != 0 && frozen_rows == 0)) {
+        int old_clears = lines_cleared;
+        if (old_clears != 0) {
+            wipe_clears();
+            collapse_clears();
+        }
+        check_clears();
+        if (old_clears == 0 && lines_cleared != 0) {
+            wipe_clears();
+            collapse_clears();
+            play_sound(&linecollapse_sound);
+        }
+    }
 }
 
 void increment_level_piece_spawn() {
@@ -604,14 +627,10 @@ void try_rotate(const int direction) {
 }
 
 void check_clears() {
-    clears[0] = -1;
-    clears[1] = -1;
-    clears[2] = -1;
-    clears[3] = -1;
+    for (int i = 0; i < 21; ++i) clears[i] = -1;
 
     int ct = 0;
-
-    for (int i = 0; i < 21; i++) {
+    for (int i = 0; i < (21 - (frozen_ignore_next ? 0 : frozen_rows)); i++) {
         if (
             field[0][i].type != BLOCK_VOID &&
             field[1][i].type != BLOCK_VOID &&
@@ -627,12 +646,13 @@ void check_clears() {
         }
     }
 
+    frozen_ignore_next = false;
     lines_cleared = ct;
     increment_level_line_clear(ct);
 }
 
-void wipe_cleared() {
-    for (int i = 0; i < 4; ++i) {
+void wipe_clears() {
+    for (int i = 0; i < 21; ++i) {
         if (clears[i] == -1) break;
         field[0][clears[i]].type = BLOCK_VOID;
         field[1][clears[i]].type = BLOCK_VOID;
@@ -648,7 +668,7 @@ void wipe_cleared() {
 }
 
 void collapse_clears() {
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 21; ++i) {
         if (clears[i] == -1) break;
         for (int j = clears[i]; j > 0; j--) {
             field[0][j] = field[0][j-1];
@@ -673,6 +693,7 @@ void collapse_clears() {
         field[8][0].type = BLOCK_VOID;
         field[9][0].type = BLOCK_VOID;
     }
+    lines_cleared = 0;
 }
 
 int get_gravity() {
@@ -1436,6 +1457,19 @@ void render_game() {
     render_current_block();
     render_details();
 
+    // Pikii?
+    if (frozen_rows > 0) {
+        SDL_SetRenderDrawColorFloat(renderer, 0.45f, 0.61f, 0.82f, 0.4f);
+        dst.w = 10.0f*16.0f;
+        dst.h = (float)frozen_rows*16.0f;
+        dst.x = FIELD_X_OFFSET;
+        dst.y = FIELD_Y_OFFSET + ((20.0f-(float)frozen_rows)*16.0f);
+        SDL_RenderFillRect(renderer, &dst);
+        SDL_SetRenderDrawColorFloat(renderer, 0.45f, 0.61f, 0.82f, 0.8f);
+        dst.h = 2.0f;
+        SDL_RenderFillRect(renderer, &dst);
+    }
+
     // Title screen.
     if (game_state == STATE_WAIT) {
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
@@ -1537,6 +1571,8 @@ void do_reset() {
     previous_clears = 0;
     in_roll = false;
     in_roll_remaining = 0;
+    frozen_rows = 0;
+    frozen_ignore_next = false;
 }
 
 void update_details() {
@@ -1724,7 +1760,7 @@ bool state_machine_tick() {
         if (game_state != STATE_LOCKFLASH) return true;
         if (lines_cleared != 0) {
             play_sound(&lineclear_sound);
-            wipe_cleared();
+            wipe_clears();
             game_state_ctr = current_timing->clear;
             game_state = STATE_CLEAR;
         } else {

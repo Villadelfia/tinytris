@@ -63,7 +63,7 @@ credits  = 5120 27  27      10  30   25    1    0       0      999      3600
 name = TAP-Master M
 
 ; Effect list:
-;   - 0x0000XXXX: Torikan. If any of the lower 16 bits are set, this will count as a torikan value in frames.
+;   - 0x0000FFFF: Torikan. If any of the lower 16 bits are set, this will count as a torikan value in frames.
 ;   - 0x00010000: Torikan scope. If bit 16 is set, the torikan counts the entire game. Otherwise it counts the time
 ;                 spent in the last 99 levels.
 ;   - 0x00020000: Torikan effect. If bit 17 is set, the torikan will act as an immediate game-over. Otherwise it will
@@ -79,3 +79,9 @@ name = TAP-Master M
 ;   - 0x08000000: Invisibility hint, lockflash. If bit 27 is set, for the duration of the section, the edges of all
 ;                 pieces will be drawn during lockflash.
 ;   - 0x04000000: TGM+ Sequence. If bit 26 is set, garbage will use the TAP TGM+ sequence.
+;   - 0x00F80000: Frozen Rows. If any of the bits 19-23 are set, it will freeze that many rows at the bottom of the field.
+;                 These rows cannot be cleared and will clear when the frozen effect is no longer active.
+;   - 0x00040000: Frozen reset. If bit 18 is set, frozen rows will be cleared before being reapplied. If not set, frozen
+;                 rows will remain, for a "frozen" effect.
+;   - 0x02000000: Unused.
+;   - 0x01000000: Unused.
