@@ -83,5 +83,5 @@ name = TAP-Master M
 ;                 These rows cannot be cleared and will clear when the frozen effect is no longer active.
 ;   - 0x00040000: Frozen reset. If bit 18 is set, frozen rows will be cleared before being reapplied. If not set, frozen
 ;                 rows will remain, for a "frozen" effect.
-;   - 0x02000000: Unused.
-;   - 0x01000000: Unused.
+;   - 0x02000000: Bones. If bit 25 is set, all pieces generated after this point will be rendered as [].
+;   - 0x01000000: TGM3-style garbage quota. Line clears will increment the garbage quota.

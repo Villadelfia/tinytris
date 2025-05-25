@@ -12,7 +12,8 @@ typedef enum {
     BLOCK_J,
     BLOCK_L,
     BLOCK_O,
-    BLOCK_T
+    BLOCK_T,
+    BLOCK_BONE
 } block_type_t;
 
 typedef enum {
@@ -111,6 +112,8 @@ typedef struct {
 #define INVISIBILITY_HINT_ONCE_MASK  (0x10000000)
 #define INVISIBILITY_HINT_FLASH_MASK (0x08000000)
 #define TGM2_PLUS_SEQUENCE_MASK      (0x04000000)
-#define FROZEN_VALUE_MASK             (0x00F80000)
-#define FROZEN_VALUE_SHIFT            (19)
-#define FROZEN_RESET_MASK             (0x00040000)
+#define FROZEN_VALUE_MASK            (0x00F80000)
+#define FROZEN_VALUE_SHIFT           (19)
+#define FROZEN_RESET_MASK            (0x00040000)
+#define BONES_MASK                   (0x02000000)
+#define TI_GARBAGE_QUOTA             (0x01000000)
