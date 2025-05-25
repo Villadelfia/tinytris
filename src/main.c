@@ -17,6 +17,7 @@ static SDL_Renderer *renderer = NULL;
 static SDL_Gamepad *gamepad = NULL;
 static SDL_Texture *block_texture = NULL;
 static SDL_Texture *border_texture = NULL;
+static SDL_Texture *next_hold_texture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
 static SDL_AudioStream *music = NULL;
 #define FRAME_TIME (SDL_NS_PER_SECOND / SDL_SINT64_C(60))
@@ -1380,11 +1381,49 @@ void render_game() {
     SDL_RenderTexture(renderer, border_texture, NULL, &dst);
 
     // Background for next.
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.05f);
-    for (int i = 0; i < 19; i++) {
-        dst = (SDL_FRect){.x = FIELD_X_OFFSET + (2.0f * 16.0f) - (float)i, .y = FIELD_Y_OFFSET - (4.0f * 16.0f) - 4, .w = 6.0f * 16.0f + (float)(2*i), .h = 2.0f * 16.0f + 8};
-        SDL_RenderFillRect(renderer, &dst);
+    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0 || get_setting_value(HOLD_SETTING_IDX) > 0) {
+        SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
+        const float mid_point = FIELD_X_OFFSET + (5.5f * 32.0f);
+        dst.x = mid_point - 3.0f*32.0f;
+        dst.y = 2.0f * (FIELD_Y_OFFSET - (4.0f * 16.0f) - 4);
+        dst.w = 6.0f * 32.0f;
+        dst.h = 2.0f * (2.0f * 16.0f + 8);
+        SDL_FRect dst2 = dst;
+        dst2.h = 1.0f;
+        SDL_FRect dst3 = dst2;
+        dst3.y += dst.h - 1;
+        for (int i = 0; i < 80; i++) {
+            SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.015f);
+            SDL_RenderFillRect(renderer, &dst);
+            SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 0.05f);
+            SDL_RenderFillRect(renderer, &dst2);
+            SDL_RenderFillRect(renderer, &dst3);
+            dst.x -= 1.0f;
+            dst.w += 2.0f;
+            dst2.x -= 1.0f;
+            dst2.w += 2.0f;
+            dst3.x -= 1.0f;
+            dst3.w += 2.0f;
+        }
+        SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
     }
+
+    // Next/hold text.
+    float w = 0, h = 0;
+    SDL_GetTextureSize(next_hold_texture, &w, &h);
+    h /= 2.0f;
+    SDL_FRect src = {0};
+    src.w = w;
+    src.h = h;
+    dst.x = FIELD_X_OFFSET + (3.0f * 16.0f);
+    dst.y = (FIELD_Y_OFFSET - (4.0f * 16.0f) - 12);
+    dst.w = w;
+    dst.h = h;
+    SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
+    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) SDL_RenderTexture(renderer, next_hold_texture, &src, &dst);
+    src.y += h;
+    dst.x -= 3.5f*16.0f;
+    if (get_setting_value(HOLD_SETTING_IDX) > 0) SDL_RenderTexture(renderer, next_hold_texture, &src, &dst);
 
     // Render the game.
     render_field();
@@ -1396,11 +1435,11 @@ void render_game() {
     render_current_block();
     render_details();
 
-    // A bit of info.
-    SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
-    SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-
+    // Title screen.
     if (game_state == STATE_WAIT) {
+        SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
+        SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
+
         float y_offset = FIELD_Y_OFFSET+4.0f;
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
         for (int i = 0; i < SETTINGS_COUNT; ++i) {
@@ -1475,9 +1514,9 @@ void render_game() {
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Start game", SDL_GetGamepadStringForButton(GAMEPAD_START));
         y_offset += 0.5f;
         SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Reset game", SDL_GetGamepadStringForButton(GAMEPAD_RESET));
-    }
 
-    SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
+        SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
+    }
 
     SDL_RenderPresent(renderer);
 }
@@ -1794,6 +1833,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     // Load the image for a block.
     block_texture = load_image("data/block.png", block, sizeof block);
     border_texture = load_image("data/border.png", border, sizeof border);
+    next_hold_texture = load_image("data/next_hold.png", next_hold, sizeof next_hold);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);

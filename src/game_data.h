@@ -2,6 +2,7 @@
 
 #include "assets/block.h"
 #include "assets/border.h"
+#include "assets/next_hold.h"
 #include "assets/lineclear.h"
 #include "assets/linecollapse.h"
 #include "assets/pieceland.h"
