@@ -623,4 +623,5 @@ static inline void calculate_mode_hash() {
     for (size_t i = 0; i < SHA1_DIGEST_BYTE_LENGTH; i++) SDL_snprintf(MODE_HASH + (i*2), 2*SHA1_DIGEST_BYTE_LENGTH - (i*2), "%02X", hash[i]);
     // Truncate at the point the screen runs out of space.
     MODE_HASH[17] = '\0';
+    SDL_free(data);
 }
