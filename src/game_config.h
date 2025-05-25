@@ -84,6 +84,7 @@ size_t GAME_TIMINGS_COUNT = 0;
 timing_t *GAME_TIMINGS = NULL;
 timing_t CREDITS_ROLL_TIMING = {.level = INT32_MAX};
 char MODE_HASH[41] = {0};
+char START_LEVEL_STRING[16] = {0};
 
 #define MODE_SETTING_IDX 0
 #define ROTATION_SETTING_IDX 1
@@ -92,7 +93,8 @@ char MODE_HASH[41] = {0};
 #define HOLD_SETTING_IDX 4
 #define GRAVITY_SETTING_IDX 5
 #define INVISIBILITY_SETTING_IDX 6
-#define SETTINGS_COUNT 7
+#define STARTING_LEVEL_SETTING_IDX 7
+#define SETTINGS_COUNT 8
 
 int selected_setting = 0;
 int settings_values[SETTINGS_COUNT] = {
@@ -102,7 +104,8 @@ int settings_values[SETTINGS_COUNT] = {
     3, // Previews
     1, // Hold enabled
     0, // 20G mode
-    0  // Invisibility
+    0, // Invisibility
+    0  // Starting level
 };
 int settings_limits[SETTINGS_COUNT] = {
     0,
@@ -111,7 +114,8 @@ int settings_limits[SETTINGS_COUNT] = {
     4,
     2,
     2,
-    3
+    3,
+    1
 };
 char *settings_strings[SETTINGS_COUNT][4] = {
     // Modes are stored elsewhere.
@@ -163,7 +167,10 @@ char *settings_strings[SETTINGS_COUNT][4] = {
         "Vision: Fading",
         "Vision: Invis.",
         ""
-    }
+    },
+
+    // Starting level is stored elsewhere.
+    {"", "", "", ""}
 };
 
 static inline bool load_song(const char *file, SDL_AudioSpec *head_format, int16_t **head_data, uint32_t *head_data_len, SDL_AudioSpec *body_format, int16_t **body_data, uint32_t *body_data_len) {
@@ -583,10 +590,16 @@ static inline void load_config() {
         GAME_TIMINGS = default_game_timing;
         CREDITS_ROLL_TIMING = default_credits_roll_timing;
         GAME_TIMINGS_COUNT = default_game_timing_len;
+        settings_limits[STARTING_LEVEL_SETTING_IDX] = GAME_TIMINGS[GAME_TIMINGS_COUNT-2].level + 1;
+        if (CREDITS_ROLL_TIMING.level > GAME_TIMINGS[GAME_TIMINGS_COUNT-2].level && CREDITS_ROLL_TIMING.level != INT32_MAX) settings_limits[STARTING_LEVEL_SETTING_IDX] = CREDITS_ROLL_TIMING.level;
+        settings_values[STARTING_LEVEL_SETTING_IDX] = 0;
     } else {
         GAME_TIMINGS = MODES[0].game_timings;
         CREDITS_ROLL_TIMING = MODES[0].credits_roll_timings;
         GAME_TIMINGS_COUNT = MODES[0].count;
+        settings_limits[STARTING_LEVEL_SETTING_IDX] = GAME_TIMINGS[GAME_TIMINGS_COUNT-2].level + 1;
+        if (CREDITS_ROLL_TIMING.level > GAME_TIMINGS[GAME_TIMINGS_COUNT-2].level && CREDITS_ROLL_TIMING.level != INT32_MAX) settings_limits[STARTING_LEVEL_SETTING_IDX] = CREDITS_ROLL_TIMING.level;
+        settings_values[STARTING_LEVEL_SETTING_IDX] = 0;
     }
 }
 
@@ -599,14 +612,24 @@ static inline void change_setting(const int idx, const int direction) {
     }
 
     settings_values[idx] += direction;
-    if (settings_values[idx] < 0) settings_values[idx] = settings_limits[idx]-1;
-    if (settings_values[idx] >= settings_limits[idx]) settings_values[idx] = 0;
+    if (settings_values[idx] < 0) {
+        if (selected_setting == STARTING_LEVEL_SETTING_IDX) settings_values[idx] = 0;
+        else settings_values[idx] = settings_limits[idx]-1;
+    }
+    if (settings_values[idx] >= settings_limits[idx]) {
+        if (selected_setting == STARTING_LEVEL_SETTING_IDX) settings_values[idx] = settings_limits[idx]-1;
+        else settings_values[idx] = 0;
+    }
 
     // Modes are a special case.
     if (idx == MODE_SETTING_IDX) {
         GAME_TIMINGS = MODES[settings_values[MODE_SETTING_IDX]].game_timings;
         CREDITS_ROLL_TIMING = MODES[settings_values[MODE_SETTING_IDX]].credits_roll_timings;
         GAME_TIMINGS_COUNT = MODES[settings_values[MODE_SETTING_IDX]].count;
+
+        settings_limits[STARTING_LEVEL_SETTING_IDX] = GAME_TIMINGS[GAME_TIMINGS_COUNT-2].level + 1;
+        if (CREDITS_ROLL_TIMING.level > GAME_TIMINGS[GAME_TIMINGS_COUNT-2].level && CREDITS_ROLL_TIMING.level != INT32_MAX) settings_limits[STARTING_LEVEL_SETTING_IDX] = CREDITS_ROLL_TIMING.level;
+        settings_values[STARTING_LEVEL_SETTING_IDX] = 0;
     }
 }
 
@@ -625,6 +648,12 @@ static inline char* get_settings_description(const int idx) {
     if (idx == MODE_SETTING_IDX) {
         if (settings_limits[MODE_SETTING_IDX] == 0) return "Builtin";
         return MODES[settings_values[MODE_SETTING_IDX]].name;
+    }
+
+    if (idx == STARTING_LEVEL_SETTING_IDX) {
+        SDL_memset(START_LEVEL_STRING, 0, 16);
+        SDL_snprintf(START_LEVEL_STRING, 16, "Start Lvl: %04d", settings_values[STARTING_LEVEL_SETTING_IDX]);
+        return START_LEVEL_STRING;
     }
 
     return settings_strings[idx][settings_values[idx]];

@@ -1691,16 +1691,29 @@ bool state_machine_tick() {
     if (game_state == STATE_WAIT) {
         if (IS_JUST_HELD(button_l_held)) change_setting(selected_setting, -1);
         if (IS_JUST_HELD(button_r_held)) change_setting(selected_setting, 1);
+
+        // Specifically for start level...
+        if (selected_setting == STARTING_LEVEL_SETTING_IDX) {
+            if (IS_HELD_FOR_AT_LEAST(button_l_held, 600)) change_setting(selected_setting, -100);
+            else if (IS_HELD_FOR_AT_LEAST(button_l_held, 120)) change_setting(selected_setting, -10);
+            else if (IS_HELD_FOR_AT_LEAST(button_l_held, 30)) change_setting(selected_setting, -1);
+            if (IS_HELD_FOR_AT_LEAST(button_r_held, 600)) change_setting(selected_setting, 100);
+            else if (IS_HELD_FOR_AT_LEAST(button_r_held, 120)) change_setting(selected_setting, 10);
+            else if (IS_HELD_FOR_AT_LEAST(button_r_held, 30)) change_setting(selected_setting, 1);
+        }
+
         if (IS_JUST_HELD(button_u_held)) change_selected_setting(-1);
         if (IS_JUST_HELD(button_d_held)) change_selected_setting(1);
+
         if (IS_JUST_HELD(button_start_held)) {
             game_state = STATE_BEGIN;
             game_state_ctr = 60;
             play_sound(&ready_sound);
             current_timing = GAME_TIMINGS;
+            level = get_setting_value(STARTING_LEVEL_SETTING_IDX);
+            while ((current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) current_timing = current_timing+1;
             check_garbage();
             check_effect();
-            level = 0;
             for (int i = 0; i < SETTINGS_COUNT; ++i) locked_settings[i] = settings_values[i];
             calculate_mode_hash();
         }
@@ -1708,6 +1721,10 @@ bool state_machine_tick() {
         game_state_ctr--;
         if (game_state_ctr == 0) {
             SDL_memset(&game_details, 0, sizeof(game_details_t));
+            while (level >= (game_details.current_section + 1) * 100) {
+                game_details.current_section++;
+                game_details.highest_regular_section = game_details.current_section;
+            }
             game_state = STATE_ARE;
             game_state_ctr = 1;
             play_sound(&go_sound);
