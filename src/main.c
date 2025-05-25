@@ -315,6 +315,8 @@ void check_effect() {
     bool tgm2_plus_sequence = (effect & TGM2_PLUS_SEQUENCE_MASK) != 0;
     int prev_frozen = frozen_rows;
     frozen_rows = (effect & FROZEN_VALUE_MASK) >> FROZEN_VALUE_SHIFT;
+    if (frozen_rows < 0) frozen_rows = 0;
+    if (frozen_rows > 21) frozen_rows = 21;
     frozen_ignore_next = (effect & FROZEN_RESET_MASK) != 0;
     if (torikan != 0) {
         bool hit_torikan = game_details.total_frames > torikan;
