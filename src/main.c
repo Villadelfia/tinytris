@@ -961,6 +961,7 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
         case LOCK_UNLOCKED:
             mod = 0.5f + (lockParam * 0.5f);
             voidToLeft = voidToRight = voidAbove = voidBelow = false;
+            if (SMOOTH_GRAVITY && !piece_grounded()) dest.y += ((float)accumulated_g/256.0f) * 16.0f;
             break;
         case LOCK_GHOST:
             mod = 0.8f;

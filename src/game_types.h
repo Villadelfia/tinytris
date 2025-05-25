@@ -86,6 +86,18 @@ typedef struct {
     int32_t garbage;
     int32_t effect;
 
+    // Reserved for later expansion.
+    int32_t unused_0;
+    int32_t unused_1;
+    int32_t unused_2;
+    int32_t unused_3;
+    int32_t unused_4;
+    int32_t unused_5;
+    int32_t unused_6;
+    int32_t unused_7;
+    int32_t unused_8;
+    int32_t unused_9;
+
     // Only used for roll.
     int32_t duration;
 } timing_t;

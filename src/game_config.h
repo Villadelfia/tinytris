@@ -53,6 +53,7 @@ float BGM_VOLUME = 0.6f;
 float SFX_VOLUME = 1.0f;
 float FADE_TIME = 60.0f;
 bool DETAILS = false;
+bool SMOOTH_GRAVITY = false;
 float FIELD_TRANSPARENCY = 0.8f;
 
 typedef struct {
@@ -354,6 +355,16 @@ static int parse_timing(void* user, const char* section, const char* name, const
             CREDITS_ROLL_TIMING.fade = fade;
             CREDITS_ROLL_TIMING.garbage = garbage;
             CREDITS_ROLL_TIMING.effect = effect;
+            CREDITS_ROLL_TIMING.unused_0 = 0;
+            CREDITS_ROLL_TIMING.unused_1 = 0;
+            CREDITS_ROLL_TIMING.unused_2 = 0;
+            CREDITS_ROLL_TIMING.unused_3 = 0;
+            CREDITS_ROLL_TIMING.unused_4 = 0;
+            CREDITS_ROLL_TIMING.unused_5 = 0;
+            CREDITS_ROLL_TIMING.unused_6 = 0;
+            CREDITS_ROLL_TIMING.unused_7 = 0;
+            CREDITS_ROLL_TIMING.unused_8 = 0;
+            CREDITS_ROLL_TIMING.unused_9 = 0;
             CREDITS_ROLL_TIMING.duration = duration;
             return 1;
         }
@@ -369,14 +380,18 @@ static int parse_timing(void* user, const char* section, const char* name, const
             .fade = fade,
             .garbage = garbage,
             .effect = effect,
+            .unused_0 = 0,
+            .unused_1 = 0,
+            .unused_2 = 0,
+            .unused_3 = 0,
+            .unused_4 = 0,
+            .unused_5 = 0,
+            .unused_6 = 0,
+            .unused_7 = 0,
+            .unused_8 = 0,
+            .unused_9 = 0,
             .duration = 0
         };
-        t.level = level;
-        t.g = g;
-        t.are = are;
-        t.line_are = line_are;
-        t.das = das;
-        t.lock = lock;
 
         GAME_TIMINGS_COUNT++;
         GAME_TIMINGS = SDL_realloc(GAME_TIMINGS, GAME_TIMINGS_COUNT * sizeof(timing_t));
@@ -469,6 +484,7 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "sfx_volume") == 0) SFX_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "fade_time") == 0) FADE_TIME = (float)v;
         if (SDL_strcasecmp(name, "details_open") == 0) DETAILS = v != 0;
+        if (SDL_strcasecmp(name, "smooth_gravity") == 0) SMOOTH_GRAVITY = v != 0;
         if (SDL_strcasecmp(name, "field_transparency") == 0) FIELD_TRANSPARENCY = (float)v/100.0f;
         if (SDL_strcasecmp(name, "rotation_system") == 0) settings_values[ROTATION_SETTING_IDX] = v == 0 ? 0 : 1;
         if (SDL_strcasecmp(name, "rng_mode") == 0) {
