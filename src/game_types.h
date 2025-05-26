@@ -85,7 +85,8 @@ typedef struct {
     int32_t clear;
     int32_t fade;
     int32_t garbage;
-    int32_t effect;
+    int32_t torikan;
+    int32_t freeze;
 
     // Reserved for later expansion.
     int32_t unused_0;
@@ -96,24 +97,42 @@ typedef struct {
     int32_t unused_5;
     int32_t unused_6;
     int32_t unused_7;
-    int32_t unused_8;
-    int32_t unused_9;
+
+    // Effect bitmask.
+    int32_t effect;
 
     // Only used for roll.
     int32_t duration;
 } timing_t;
 
-#define TORIKAN_VALUE_MASK           (0x0000FFFF)
-#define TORIKAN_SCOPE_MASK           (0x00010000)
-#define TORIKAN_EFFECT_MASK          (0x00020000)
-#define CLEAR_FIELD_MASK             (0x80000000)
-#define RESET_VISIBILITY_MASK        (0x40000000)
-#define RESET_VISIBILITY_TIMER_MASK  (0x20000000)
-#define INVISIBILITY_HINT_ONCE_MASK  (0x10000000)
-#define INVISIBILITY_HINT_FLASH_MASK (0x08000000)
-#define TGM2_PLUS_SEQUENCE_MASK      (0x04000000)
-#define FROZEN_VALUE_MASK            (0x00F80000)
-#define FROZEN_VALUE_SHIFT           (19)
-#define FROZEN_RESET_MASK            (0x00040000)
-#define BONES_MASK                   (0x02000000)
-#define TI_GARBAGE_QUOTA             (0x01000000)
+typedef struct {
+    char* name;
+    int32_t mask;
+} effect_def_t;
+
+#define TORIKAN_SCOPE_MASK           (0x00000001)
+#define TORIKAN_EFFECT_MASK          (0x00000002)
+#define TGM2_PLUS_SEQUENCE_MASK      (0x00000004)
+#define TI_GARBAGE_QUOTA             (0x00000008)
+#define RESET_VISIBILITY_MASK        (0x00000010)
+#define RESET_VISIBILITY_TIMER_MASK  (0x00000020)
+#define INVISIBILITY_HINT_ONCE_MASK  (0x00000040)
+#define INVISIBILITY_HINT_FLASH_MASK (0x00000080)
+#define FROZEN_RESET_MASK            (0x00000100)
+#define CLEAR_FIELD_MASK             (0x00000200)
+#define BONES_MASK                   (0x00000400)
+
+// #define TORIKAN_VALUE_MASK           (0x0000FFFF)
+// #define TORIKAN_SCOPE_MASK           (0x00010000)
+// #define TORIKAN_EFFECT_MASK          (0x00020000)
+// #define CLEAR_FIELD_MASK             (0x80000000)
+// #define RESET_VISIBILITY_MASK        (0x40000000)
+// #define RESET_VISIBILITY_TIMER_MASK  (0x20000000)
+// #define INVISIBILITY_HINT_ONCE_MASK  (0x10000000)
+// #define INVISIBILITY_HINT_FLASH_MASK (0x08000000)
+// #define TGM2_PLUS_SEQUENCE_MASK      (0x04000000)
+// #define FROZEN_VALUE_MASK            (0x00F80000)
+// #define FROZEN_VALUE_SHIFT           (19)
+// #define FROZEN_RESET_MASK            (0x00040000)
+// #define BONES_MASK                   (0x02000000)
+// #define TI_GARBAGE_QUOTA             (0x01000000)

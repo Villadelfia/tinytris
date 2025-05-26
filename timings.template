@@ -12,76 +12,76 @@
 ;   - A garbage parameter. If it is greater than 0, the bottom line of the field will be copied once that many pieces
 ;     are locked without clearing lines. If it is negative, the bottom row gets copied, then inverted (empty becomes
 ;     filled and vice-versa) unless the bottom row only contains garbage blocks.
-;   - An effect parameter. This is a 32-bit bitfield of flags. If a flag is set, this effect will be active until a
-;     future section turns it off. If the effect is a one-off, it takes effect whenever the bit is set. See the bottom
+;   - A torikan parameter. A frame-count, that if exceeded by the time this point is hit, will end the game. Functions
+;     differently depending on effect bits set.
+;   - A freeze parameter. If set, freezes that many bottom lines of the field. They cannot be cleared until the effect
+;     passes.
+;   - An effect parameter. An optional comma-separated list of flags. If a flag is set, this effect will be active until
+;     a future section turns it off. If the effect is a one-off, it takes effect whenever the bit is set. See the bottom
 ;     of this file for a list of supported effects.
 [timing]
-;lvl = grav are lineare das lock clear fade garbage effect
-0    = 4    27  27      16  30   40    0    0       0
-30   = 6    27  27      16  30   40    0    0       0
-35   = 8    27  27      16  30   40    0    0       0
-40   = 10   27  27      16  30   40    0    0       0
-50   = 12   27  27      16  30   40    0    0       0
-60   = 16   27  27      16  30   40    0    0       0
-70   = 32   27  27      16  30   40    0    0       0
-80   = 48   27  27      16  30   40    0    0       0
-90   = 64   27  27      16  30   40    0    0       0
-100  = 80   27  27      16  30   40    0    0       0
-120  = 96   27  27      16  30   40    0    0       0
-140  = 112  27  27      16  30   40    0    0       0
-160  = 128  27  27      16  30   40    0    0       0
-170  = 144  27  27      16  30   40    0    0       0
-200  = 4    27  27      16  30   40    0    0       0
-220  = 32   27  27      16  30   40    0    0       0
-230  = 64   27  27      16  30   40    0    0       0
-233  = 96   27  27      16  30   40    0    0       0
-236  = 128  27  27      16  30   40    0    0       0
-239  = 160  27  27      16  30   40    0    0       0
-243  = 192  27  27      16  30   40    0    0       0
-247  = 224  27  27      16  30   40    0    0       0
-251  = 256  27  27      16  30   40    0    0       0
-300  = 512  27  27      16  30   40    0    0       0
-330  = 768  27  27      16  30   40    0    0       0
-360  = 1024 27  27      16  30   40    0    0       0
-400  = 1280 27  27      16  30   40    0    0       0
-420  = 1024 27  27      16  30   40    0    0       0
-450  = 768  27  27      16  30   40    0    0       0
-500  = 5120 27  27      10  30   25    0    0       0
-601  = 5120 27  18      10  30   16    0    0       0
-701  = 5120 18  14      10  30   12    0    0       0
-801  = 5120 14   8      10  30    6    0    0       0
-901  = 5120 14   8       8  17    6    0    0       0
+;lvl = grav are lineare das lock clear fade garbage torikan freeze effect
+0    = 4    27  27      16  30   40    0    0       0       0      0
+30   = 6    27  27      16  30   40    0    0       0       0      0
+35   = 8    27  27      16  30   40    0    0       0       0      0
+40   = 10   27  27      16  30   40    0    0       0       0      0
+50   = 12   27  27      16  30   40    0    0       0       0      0
+60   = 16   27  27      16  30   40    0    0       0       0      0
+70   = 32   27  27      16  30   40    0    0       0       0      0
+80   = 48   27  27      16  30   40    0    0       0       0      0
+90   = 64   27  27      16  30   40    0    0       0       0      0
+100  = 80   27  27      16  30   40    0    0       0       0      0
+120  = 96   27  27      16  30   40    0    0       0       0      0
+140  = 112  27  27      16  30   40    0    0       0       0      0
+160  = 128  27  27      16  30   40    0    0       0       0      0
+170  = 144  27  27      16  30   40    0    0       0       0      0
+200  = 4    27  27      16  30   40    0    0       0       0      0
+220  = 32   27  27      16  30   40    0    0       0       0      0
+230  = 64   27  27      16  30   40    0    0       0       0      0
+233  = 96   27  27      16  30   40    0    0       0       0      0
+236  = 128  27  27      16  30   40    0    0       0       0      0
+239  = 160  27  27      16  30   40    0    0       0       0      0
+243  = 192  27  27      16  30   40    0    0       0       0      0
+247  = 224  27  27      16  30   40    0    0       0       0      0
+251  = 256  27  27      16  30   40    0    0       0       0      0
+300  = 512  27  27      16  30   40    0    0       0       0      0
+330  = 768  27  27      16  30   40    0    0       0       0      0
+360  = 1024 27  27      16  30   40    0    0       0       0      0
+400  = 1280 27  27      16  30   40    0    0       0       0      0
+420  = 1024 27  27      16  30   40    0    0       0       0      0
+450  = 768  27  27      16  30   40    0    0       0       0      0
+500  = 5120 27  27      10  30   25    0    0       0       0      0
+601  = 5120 27  18      10  30   16    0    0       0       0      0
+701  = 5120 18  14      10  30   12    0    0       0       0      0
+801  = 5120 14   8      10  30    6    0    0       0       0      0
+901  = 5120 14   8       8  17    6    0    0       0       0      0
 
 ; Credits is the timing data for the credits roll. Is has the same format as the other timing data, except two fields
 ; are added to the end: endlevel and duration.
 ;   - endlevel is the level at which the game ends, the field is cleared, and a 5 second countdown begins for the roll.
 ;   - duration is the length of the roll in frames.
-;credits = grav are lineare das lock clear fade garbage effect endlevel duration
-credits  = 5120 27  27      10  30   25    1    0       0      999      3600
+;credits = grav are lineare das lock clear fade garbage torikan freeze endlevel duration effect
+credits  = 5120 27  27      10  30   25    1    0       0       0      999      3600     0
 
 ; name is the name this mode gets in the menu.
 name = TAP-Master M
 
 ; Effect list:
-;   - 0x0000FFFF: Torikan. If any of the lower 16 bits are set, this will count as a torikan value in frames.
-;   - 0x00010000: Torikan scope. If bit 16 is set, the torikan counts the entire game. Otherwise it counts the time
-;                 spent in the last 99 levels.
-;   - 0x00020000: Torikan effect. If bit 17 is set, the torikan will act as an immediate game-over. Otherwise it will
-;                 skip the game ahead to the credits.
-;   - 0x80000000: Clear field. If bit 31 is set, the field will be entirely cleared as soon as this timing milestone is
-;                 reached.
-;   - 0x40000000: Reset visibility. If bit 30 is set, all pieces will be made visible and their placement time will be
-;                 set to now. Useful for when you want a fade to begin gradually at a point in time.
-;   - 0x20000000: Reset visibility timer. If bit 29 is set, any piece that is not already invisible or in the process
-;                 of fading will have its placement time set to now.
-;   - 0x10000000: Invisibility hint, one time. If bit 28 is set, the edges of all piece will briefly be made visible
-;                 even if the edges are normally not drawn due to invisibility or fading mode.
-;   - 0x08000000: Invisibility hint, lockflash. If bit 27 is set, for the duration of the section, the edges of all
-;                 pieces will be drawn during lockflash.
-;   - 0x04000000: TGM+ Sequence. If bit 26 is set, garbage will use the TAP TGM+ sequence.
-;   - 0x00F80000: Frozen Rows. If any of the bits 19-23 are set, it will freeze that many rows at the bottom of the field.
-;                 These rows cannot be cleared and will clear when the frozen effect is no longer active.
-;   - 0x00040000: Frozen reset. If bit 18 is set, frozen rows will be cleared before being reapplied. If not set, frozen
-;                 rows will remain, for a "frozen" effect.
-;   - 0x02000000: Bones. If bit 25 is set, all pieces generated after this point will be rendered as [].
-;   - 0x01000000: TGM3-style garbage quota. Line clears will increment the garbage quota.
+;   - TORIKAN_SCOPE_GAME: Torikan scope. The torikan counts the entire game. Default.
+;   - TORIKAN_SCOPE_SECTION: Torikan scope. The torikan counts the last 100 levels.
+;   - TORIKAN_EFFECT_ROLL: Torikan effect. Hitting torikan will skip the game ahead to the credits. Default.
+;   - TORIKAN_EFFECT_GAMEOVER: Torikan effect. Hitting torikan will end the game.
+;   - GARBAGE_COPY_BOTTOM: Garbage modifier. Garbage will copy the bottom row. Default.
+;   - GARBAGE_TGM2P_SEQUENCE: Garbage modifier. Garbage will follow the TGM2+ sequence.
+;   - GARBAGE_CLEARS_STALL: Garbage modifier. Line clears will stall the quota counter. Default.
+;   - GARBAGE_CLEARS_ROLLBACK: Garbage modifier. Line clears will roll back the quota counter like TGM3.
+;   - VISIBILITY_RESET_ALL: Visibility modifier. All pieces will be made visible and their placement time will be set to
+;                           now. Useful for when you want a fade to begin gradually at a point in time.
+;   - VISIBILITY_RESET_VISIBLE: Visibility modifier. Like reset all, but only the pieces that are still completely
+;                               visible.
+;   - VISIBILITY_HINT_ONCE: Visibility modifier. The edges of the stack will be briefly made visible.
+;   - VISIBILITY_HINT_LOCKFLASH: Visibility modifier. The edges of the stack will be made visible during lockflash.
+;   - FROZEN_ROWS_CLEAR: Frozen rows modifier. Clears the currently frozen rows before reapplying the new frozen rows
+;                        effect.
+;   - CLEAR_FIELD: Field modifier. Clears the entire field.
+;   - BONES_SKIN: Skin modifier. All pieces generated while this skin is active will be rendered as [].

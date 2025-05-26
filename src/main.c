@@ -54,6 +54,7 @@ timing_t *current_timing;
 int accumulated_g = 0;
 int lines_cleared = 0;
 int clears[21] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+bool jingle_played[21] = {false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false};
 bool mystery = false;
 bool section_locked = false;
 int previous_clears = 0;
@@ -311,7 +312,7 @@ int32_t time_spent(int32_t from, int32_t to) {
 
 void check_effect() {
     int32_t effect = current_timing->effect;
-    const int32_t torikan = effect & TORIKAN_VALUE_MASK;
+    const int32_t torikan = current_timing->torikan;
     bool torikan_scope = (effect & TORIKAN_SCOPE_MASK) != 0;
     bool torikan_effect = (effect & TORIKAN_EFFECT_MASK) != 0;
     bool clear_field = (effect & CLEAR_FIELD_MASK) != 0;
@@ -321,10 +322,12 @@ void check_effect() {
     bool invisibility_hint_flash = (effect & INVISIBILITY_HINT_FLASH_MASK) != 0;
     bool tgm2_plus_sequence = (effect & TGM2_PLUS_SEQUENCE_MASK) != 0;
     int prev_frozen = frozen_rows;
-    frozen_rows = (effect & FROZEN_VALUE_MASK) >> FROZEN_VALUE_SHIFT;
+    frozen_rows = current_timing->freeze;
     if (frozen_rows < 0) frozen_rows = 0;
     if (frozen_rows > 21) frozen_rows = 21;
+    for (int i = 0; i < 21 - frozen_rows; ++i) jingle_played[i] = false;
     frozen_ignore_next = (effect & FROZEN_RESET_MASK) != 0;
+    if (frozen_ignore_next) SDL_memset(jingle_played, 0, sizeof jingle_played);
     bones = (effect & BONES_MASK) != 0;
     ti_garbage_quota = (effect & TI_GARBAGE_QUOTA) != 0;
     if (torikan != 0) {
@@ -666,6 +669,28 @@ void check_clears() {
             field[8][i].type != BLOCK_VOID &&
             field[9][i].type != BLOCK_VOID) {
             clears[ct++] = i;
+        }
+    }
+
+    if (frozen_rows > 0 && ct == 0 && !frozen_ignore_next) {
+        for (int i = 21 - frozen_rows; i < 21; i++) {
+            if (
+                field[0][i].type != BLOCK_VOID &&
+                field[1][i].type != BLOCK_VOID &&
+                field[2][i].type != BLOCK_VOID &&
+                field[3][i].type != BLOCK_VOID &&
+                field[4][i].type != BLOCK_VOID &&
+                field[5][i].type != BLOCK_VOID &&
+                field[6][i].type != BLOCK_VOID &&
+                field[7][i].type != BLOCK_VOID &&
+                field[8][i].type != BLOCK_VOID &&
+                field[9][i].type != BLOCK_VOID) {
+                    if (!jingle_played[i]) {
+                        jingle_played[i] = true;
+                        play_sound(&lineclear_sound);
+                        break;
+                    }
+                }
         }
     }
 
@@ -1612,6 +1637,7 @@ void do_reset() {
     generate_first_piece();
     SDL_memset(time_spent_at_level, 0, sizeof time_spent_at_level);
     SDL_memset(field, 0, sizeof field);
+    SDL_memset(jingle_played, 0, sizeof jingle_played);
     game_state = STATE_WAIT;
     game_state_ctr = 60;
     lines_cleared = 0;

@@ -341,9 +341,18 @@ static int parse_timing(void* user, const char* section, const char* name, const
         const long garbage = SDL_strtol(temp, &end, 0);
         if (end == temp) return 1;
         temp = end;
-        const long effect = SDL_strtol(temp, &end, 0);
+        const long torikan = SDL_strtol(temp, &end, 0);
         if (end == temp) return 1;
         temp = end;
+        const long freeze = SDL_strtol(temp, &end, 0);
+        if (end == temp) return 1;
+        temp = end;
+
+        int32_t effect = 0;
+        for (int i = 0; i < effects_list_len; ++i) {
+            char* found = SDL_strstr(value, effects_list[i].name);
+            if (found != NULL) effect |= effects_list[i].mask;
+        }
 
         if (SDL_strcasecmp(name, "credits") == 0) {
             level = SDL_strtol(temp, &end, 0);
@@ -361,7 +370,6 @@ static int parse_timing(void* user, const char* section, const char* name, const
             CREDITS_ROLL_TIMING.clear = clear;
             CREDITS_ROLL_TIMING.fade = fade;
             CREDITS_ROLL_TIMING.garbage = garbage;
-            CREDITS_ROLL_TIMING.effect = effect;
             CREDITS_ROLL_TIMING.unused_0 = 0;
             CREDITS_ROLL_TIMING.unused_1 = 0;
             CREDITS_ROLL_TIMING.unused_2 = 0;
@@ -370,8 +378,7 @@ static int parse_timing(void* user, const char* section, const char* name, const
             CREDITS_ROLL_TIMING.unused_5 = 0;
             CREDITS_ROLL_TIMING.unused_6 = 0;
             CREDITS_ROLL_TIMING.unused_7 = 0;
-            CREDITS_ROLL_TIMING.unused_8 = 0;
-            CREDITS_ROLL_TIMING.unused_9 = 0;
+            CREDITS_ROLL_TIMING.effect = effect;
             CREDITS_ROLL_TIMING.duration = duration;
             return 1;
         }
@@ -386,7 +393,8 @@ static int parse_timing(void* user, const char* section, const char* name, const
             .clear = clear,
             .fade = fade,
             .garbage = garbage,
-            .effect = effect,
+            .torikan = torikan,
+            .freeze = freeze,
             .unused_0 = 0,
             .unused_1 = 0,
             .unused_2 = 0,
@@ -395,8 +403,7 @@ static int parse_timing(void* user, const char* section, const char* name, const
             .unused_5 = 0,
             .unused_6 = 0,
             .unused_7 = 0,
-            .unused_8 = 0,
-            .unused_9 = 0,
+            .effect = effect,
             .duration = 0
         };
 
