@@ -85,3 +85,6 @@ name = TAP-Master M
 ;                        effect.
 ;   - CLEAR_FIELD: Field modifier. Clears the entire field.
 ;   - BONES_SKIN: Skin modifier. All pieces generated while this skin is active will be rendered as [].
+;   - BIG_MODE: Field modifier. Everything is drawn at double the size.
+;   - BIG_HALF_PIECE: Field modifier. Big mode will work like it did in TGM1.
+;   - BIG_PIECE: Field modifier. The next piece will be drawn big.

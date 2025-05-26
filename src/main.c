@@ -32,7 +32,7 @@ typedef struct {
 } sound_t;
 
 // Global data.
-block_t field[10][21] = {0};
+block_t field[10][24] = {0};
 block_type_t history[4] = {0};
 block_type_t bag[35] = {0};
 int histogram[7] = {0};
@@ -53,8 +53,8 @@ int level = 0;
 timing_t *current_timing;
 int accumulated_g = 0;
 int lines_cleared = 0;
-int clears[21] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
-bool jingle_played[21] = {false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false};
+int clears[24] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+bool jingle_played[24] = {false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false};
 bool mystery = false;
 bool section_locked = false;
 int previous_clears = 0;
@@ -80,6 +80,11 @@ bool active_piece_is_bone = false;
 bool held_piece_is_bone = false;
 bool queue_is_bone[3] = {false, false, false};
 bool ti_garbage_quota = false;
+bool big_mode = false;
+bool big_mode_half_columns = false;
+bool big_piece = false;
+int old_w = 0;
+int old_h = 0;
 
 
 sound_t lineclear_sound;
@@ -115,7 +120,6 @@ int32_t button_c_held = 0;
 int32_t button_hold_held = 0;
 int32_t button_start_held = 0;
 int32_t button_reset_held = 0;
-int32_t button_quit_held = 0;
 int32_t button_scale_up_held = 0;
 int32_t button_scale_down_held = 0;
 int32_t button_mute_held = 0;
@@ -137,7 +141,20 @@ float lerp(const float a, const float b, const float f) {
 }
 
 void apply_scale() {
-    SDL_SetWindowSize(window, DETAILS ? 26*16*RENDER_SCALE : 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
+    SDL_SetWindowSize(window, DETAILS ? 26*16*RENDER_SCALE : 13*16*RENDER_SCALE, 26*16*RENDER_SCALE);
+    if (old_w != 0 && old_h != 0) {
+        int diff_x = old_w - (DETAILS ? 26*16*RENDER_SCALE : 13*16*RENDER_SCALE);
+        int diff_y = old_h - 26*16*RENDER_SCALE;
+        diff_x /= 2;
+        diff_y /= 2;
+        if (diff_x != 0 || diff_y != 0) {
+            int x, y;
+            SDL_GetWindowPosition(window, &x, &y);
+            SDL_SetWindowPosition(window, x+diff_x, y+diff_y);
+        }
+    }
+    old_w = DETAILS ? 26*16*RENDER_SCALE : 13*16*RENDER_SCALE;
+    old_h = 26*16*RENDER_SCALE;
     SDL_SetRenderScale(renderer, 1.0f * (float)RENDER_SCALE, 1.0f * (float)RENDER_SCALE);
 }
 
@@ -194,7 +211,6 @@ void update_input_states() {
 
     update_input_state(state, BUTTON_RESET, GAMEPAD_RESET, &button_reset_held);
     update_input_state(state, BUTTON_START, GAMEPAD_START, &button_start_held);
-    update_input_state(state, BUTTON_QUIT, GAMEPAD_QUIT, &button_quit_held);
 
     update_input_state(state, BUTTON_SCALE_UP, GAMEPAD_SCALE_UP, &button_scale_up_held);
     update_input_state(state, BUTTON_SCALE_DOWN, GAMEPAD_SCALE_DOWN, &button_scale_down_held);
@@ -226,20 +242,20 @@ void check_garbage() {
 
 void add_garbage() {
     bool all_empty =
-        (field[0][20].type == BLOCK_VOID) &&
-        (field[1][20].type == BLOCK_VOID) &&
-        (field[2][20].type == BLOCK_VOID) &&
-        (field[3][20].type == BLOCK_VOID) &&
-        (field[4][20].type == BLOCK_VOID) &&
-        (field[5][20].type == BLOCK_VOID) &&
-        (field[6][20].type == BLOCK_VOID) &&
-        (field[7][20].type == BLOCK_VOID) &&
-        (field[8][20].type == BLOCK_VOID) &&
-        (field[9][20].type == BLOCK_VOID);
+        (field[0][23].type == BLOCK_VOID) &&
+        (field[1][23].type == BLOCK_VOID) &&
+        (field[2][23].type == BLOCK_VOID) &&
+        (field[3][23].type == BLOCK_VOID) &&
+        (field[4][23].type == BLOCK_VOID) &&
+        (field[5][23].type == BLOCK_VOID) &&
+        (field[6][23].type == BLOCK_VOID) &&
+        (field[7][23].type == BLOCK_VOID) &&
+        (field[8][23].type == BLOCK_VOID) &&
+        (field[9][23].type == BLOCK_VOID);
     if (all_empty) return;
 
     // Copy everything up.
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < 23; ++i) {
         field[0][i] = field[0][i+1];
         field[1][i] = field[1][i+1];
         field[2][i] = field[2][i+1];
@@ -267,8 +283,8 @@ void add_garbage() {
         sequence_index %= 24;
 
         for (int i = 0; i < 10; ++i) {
-            if (garbage_ptr[i] == ' ') field[i][20] = empty;
-            else field[i][20] = garbage;
+            if (garbage_ptr[i] == ' ') field[i][23] = empty;
+            else field[i][23] = garbage;
         }
 
         check_garbage();
@@ -276,24 +292,24 @@ void add_garbage() {
     }
 
     bool all_garbage =
-        (field[0][20].type == BLOCK_VOID || field[0][20].type == BLOCK_X) &&
-        (field[1][20].type == BLOCK_VOID || field[1][20].type == BLOCK_X) &&
-        (field[2][20].type == BLOCK_VOID || field[2][20].type == BLOCK_X) &&
-        (field[3][20].type == BLOCK_VOID || field[3][20].type == BLOCK_X) &&
-        (field[4][20].type == BLOCK_VOID || field[4][20].type == BLOCK_X) &&
-        (field[5][20].type == BLOCK_VOID || field[5][20].type == BLOCK_X) &&
-        (field[6][20].type == BLOCK_VOID || field[6][20].type == BLOCK_X) &&
-        (field[7][20].type == BLOCK_VOID || field[7][20].type == BLOCK_X) &&
-        (field[8][20].type == BLOCK_VOID || field[8][20].type == BLOCK_X) &&
-        (field[9][20].type == BLOCK_VOID || field[9][20].type == BLOCK_X);
+        (field[0][23].type == BLOCK_VOID || field[0][23].type == BLOCK_X) &&
+        (field[1][23].type == BLOCK_VOID || field[1][23].type == BLOCK_X) &&
+        (field[2][23].type == BLOCK_VOID || field[2][23].type == BLOCK_X) &&
+        (field[3][23].type == BLOCK_VOID || field[3][23].type == BLOCK_X) &&
+        (field[4][23].type == BLOCK_VOID || field[4][23].type == BLOCK_X) &&
+        (field[5][23].type == BLOCK_VOID || field[5][23].type == BLOCK_X) &&
+        (field[6][23].type == BLOCK_VOID || field[6][23].type == BLOCK_X) &&
+        (field[7][23].type == BLOCK_VOID || field[7][23].type == BLOCK_X) &&
+        (field[8][23].type == BLOCK_VOID || field[8][23].type == BLOCK_X) &&
+        (field[9][23].type == BLOCK_VOID || field[9][23].type == BLOCK_X);
 
     // Make bottom row garbage.
     for (int i = 0; i < 10; ++i) {
         if (current_timing->garbage < 0 && !all_garbage) {
-            if (field[i][20].type != BLOCK_VOID) field[i][20] = empty;
-            else field[i][20] = garbage;
+            if (field[i][23].type != BLOCK_VOID) field[i][23] = empty;
+            else field[i][23] = garbage;
         } else {
-            if (field[i][20].type != BLOCK_VOID) field[i][20] = garbage;
+            if (field[i][23].type != BLOCK_VOID) field[i][23] = garbage;
         }
     }
 
@@ -325,11 +341,15 @@ void check_effect() {
     frozen_rows = current_timing->freeze;
     if (frozen_rows < 0) frozen_rows = 0;
     if (frozen_rows > 21) frozen_rows = 21;
-    for (int i = 0; i < 21 - frozen_rows; ++i) jingle_played[i] = false;
+    for (int i = 0; i < 24 - frozen_rows; ++i) jingle_played[i] = false;
     frozen_ignore_next = (effect & FROZEN_RESET_MASK) != 0;
     if (frozen_ignore_next) SDL_memset(jingle_played, 0, sizeof jingle_played);
     bones = (effect & BONES_MASK) != 0;
     ti_garbage_quota = (effect & TI_GARBAGE_QUOTA) != 0;
+    big_mode = ((effect & BIG_MODE_MASK) != 0 || get_setting_value(BIG_MODE_SETTING_IDX));
+    big_piece = (effect & BIG_PIECE_MASK) != 0;
+    big_mode_half_columns = (effect & BIG_MODE_HALF_PIECE_MASK) != 0;
+    if (big_piece && current_piece.type != BLOCK_VOID) current_piece.x = 2;
     if (torikan != 0) {
         bool hit_torikan = game_details.total_frames > torikan;
         if (torikan_scope) hit_torikan = time_spent(level-100, level) > torikan;
@@ -366,7 +386,7 @@ void check_effect() {
 
     if (reset_visibility || reset_visibility_timer) {
         for (int x = 0; x < 10; x++) {
-            for (int y = 0; y < 21; y++) {
+            for (int y = 0; y < 24; y++) {
                 if (reset_visibility || field[x][y].fading == false) {
                     field[x][y].fade_state = 1.0f;
                     field[x][y].fading = false;
@@ -410,7 +430,7 @@ void increment_level_piece_spawn() {
     }
 }
 
-void increment_level_line_clear(const int lines) {
+void increment_level_line_clear(int lines) {
     if (lines == 0) {
         if (level % 100 == 99 || level == CREDITS_ROLL_TIMING.level-1) {
             if (!section_locked) {
@@ -426,6 +446,8 @@ void increment_level_line_clear(const int lines) {
         }
         return;
     }
+
+    if (big_mode && lines > 1) lines /= 2;
 
     int actual_lines = lines;
     if (get_setting_value(RNG_SETTING_IDX) == 2 && get_setting_value(ROTATION_SETTING_IDX) == 1 && lines > 2) {
@@ -471,6 +493,14 @@ void increment_level_line_clear(const int lines) {
     }
 }
 
+bool is_empty(int x, int y) {
+    if (x < 0) return false;
+    if (x > 9) return false;
+    if (y > 23) return false;
+    if (y < 0) return true;
+    return field[x][y].type == BLOCK_VOID;
+}
+
 int piece_collides(const live_block_t piece) {
     if (piece.type == BLOCK_VOID) return -1;
 
@@ -479,8 +509,14 @@ int piece_collides(const live_block_t piece) {
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
             if (rotation[4*j + i] != ' ' && piece.y + j + 1 >= 0) {
-                if (piece.y + j + 1 > 20 || piece.x + i < 0 || piece.x + i > 9 || field[piece.x + i][piece.y + j + 1].type != BLOCK_VOID) {
-                    return 4*j+i;
+                if (big_mode || big_piece) {
+                    if (!is_empty(piece.x + 2*i, piece.y + 2*j) || !is_empty(piece.x + 2*i + 1, piece.y + 2*j) || !is_empty(piece.x + 2*i, piece.y + 2*j + 1) || !is_empty(piece.x + 2*i + 1, piece.y + 2*j + 1)) {
+                        return 4*j+i;
+                    }
+                } else {
+                    if (!is_empty(piece.x + i, piece.y + j + 1)) {
+                        return 4*j+i;
+                    }
                 }
             }
         }
@@ -496,13 +532,48 @@ void write_piece(const live_block_t piece) {
 
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
-            if (rotation[4*j + i] != ' ' && piece.x + i >= 0 && piece.x + i < 10 && piece.y + j + 1 >= 0 && piece.y + j + 1 < 21) {
-                field[piece.x + i][piece.y + j + 1].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
-                field[piece.x + i][piece.y + j + 1].lock_param = 1.0f;
-                field[piece.x + i][piece.y + j + 1].lock_status = LOCK_LOCKED;
-                field[piece.x + i][piece.y + j + 1].locked_at = game_details.total_frames;
-                field[piece.x + i][piece.y + j + 1].fading = false;
-                field[piece.x + i][piece.y + j + 1].fade_state = 1.0f;
+            if (big_mode || big_piece) {
+                if (rotation[4*j + i] != ' ' && piece.x + 2*i >= 0 && piece.x + 2*i < 10 && piece.y + 2*j >= 0 && piece.y + 2*j < 24) {
+                    field[piece.x + 2*i][piece.y + 2*j].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i][piece.y + 2*j].lock_param = 1.0f;
+                    field[piece.x + 2*i][piece.y + 2*j].lock_status = LOCK_LOCKED;
+                    field[piece.x + 2*i][piece.y + 2*j].locked_at = game_details.total_frames;
+                    field[piece.x + 2*i][piece.y + 2*j].fading = false;
+                    field[piece.x + 2*i][piece.y + 2*j].fade_state = 1.0f;
+                }
+                if (rotation[4*j + i] != ' ' && piece.x + 2*i >= 0 && piece.x + 2*i < 10 && piece.y + 2*j + 1 >= 0 && piece.y + 2*j + 1 < 24) {
+                    field[piece.x + 2*i][piece.y + 2*j + 1].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i][piece.y + 2*j + 1].lock_param = 1.0f;
+                    field[piece.x + 2*i][piece.y + 2*j + 1].lock_status = LOCK_LOCKED;
+                    field[piece.x + 2*i][piece.y + 2*j + 1].locked_at = game_details.total_frames;
+                    field[piece.x + 2*i][piece.y + 2*j + 1].fading = false;
+                    field[piece.x + 2*i][piece.y + 2*j + 1].fade_state = 1.0f;
+                }
+                if (rotation[4*j + i] != ' ' && piece.x + 2*i >= 0 && piece.x + 2*i + 1 < 10 && piece.y + 2*j >= 0 && piece.y + 2*j < 24) {
+                    field[piece.x + 2*i + 1][piece.y + 2*j].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i + 1][piece.y + 2*j].lock_param = 1.0f;
+                    field[piece.x + 2*i + 1][piece.y + 2*j].lock_status = LOCK_LOCKED;
+                    field[piece.x + 2*i + 1][piece.y + 2*j].locked_at = game_details.total_frames;
+                    field[piece.x + 2*i + 1][piece.y + 2*j].fading = false;
+                    field[piece.x + 2*i + 1][piece.y + 2*j].fade_state = 1.0f;
+                }
+                if (rotation[4*j + i] != ' ' && piece.x + 2*i >= 0 && piece.x + 2*i + 1 < 10 && piece.y + 2*j + 1 >= 0 && piece.y + 2*j + 1 < 24) {
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].lock_param = 1.0f;
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].lock_status = LOCK_LOCKED;
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].locked_at = game_details.total_frames;
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].fading = false;
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].fade_state = 1.0f;
+                }
+            } else {
+                if (rotation[4*j + i] != ' ' && piece.x + i >= 0 && piece.x + i < 10 && piece.y + j + 1 >= 0 && piece.y + j + 1 < 24) {
+                    field[piece.x + i][piece.y + j + 1].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + i][piece.y + j + 1].lock_param = 1.0f;
+                    field[piece.x + i][piece.y + j + 1].lock_status = LOCK_LOCKED;
+                    field[piece.x + i][piece.y + j + 1].locked_at = game_details.total_frames;
+                    field[piece.x + i][piece.y + j + 1].fading = false;
+                    field[piece.x + i][piece.y + j + 1].fade_state = 1.0f;
+                }
             }
         }
     }
@@ -590,18 +661,43 @@ void try_rotate(const int direction) {
             }
 
             // I -> 2right
-            active.x += 2;
+            active.x += 1;
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
                 current_piece.x += 2;
                 return;
             }
 
+            // Try 3 and 4 for big mode.
+            if (big_mode || big_piece) {
+                active.x += 1;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.x += 3;
+                    return;
+                }
+
+                active.x += 1;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.x += 4;
+                    return;
+                }
+            }
+
             // I -> left
-            active.x -= 3;
+            active.x = current_piece.x - 1;
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
                 current_piece.x -= 1;
+            }
+
+            if (big_mode || big_piece) {
+                active.x -= 1;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.x -= 2;
+                }
             }
         } else if (piece_grounded() && (active.rotation_state == 1 || active.rotation_state == 3)) {
             // I -> up
@@ -620,6 +716,25 @@ void try_rotate(const int direction) {
                 current_piece.y -= 2;
                 current_piece.floor_kicked = true;
             }
+
+            // Try 3 and 4 for big mode.
+            if (big_mode || big_piece) {
+                active.y -= 1;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.y -= 3;
+                    current_piece.floor_kicked = true;
+                    return;
+                }
+
+                active.y -= 1;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.y -= 4;
+                    current_piece.floor_kicked = true;
+                    return;
+                }
+            }
         }
     } else {
         // right
@@ -630,33 +745,59 @@ void try_rotate(const int direction) {
             return;
         }
 
+        if (big_mode || big_piece) {
+            active.x += 1;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.x += 2;
+                return;
+            }
+        }
+
         // left
-        active.x -= 2;
+        active.x = current_piece.x - 1;
         if (piece_collides(active) == -1) {
             current_piece.rotation_state = active.rotation_state;
             current_piece.x -= 1;
             return;
         }
 
+        if (big_mode || big_piece) {
+            active.x -= 1;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.x -= 2;
+            }
+        }
+
         // T -> up
         if (get_setting_value(ROTATION_SETTING_IDX) == 0) return;
         if (current_piece.type == BLOCK_T && piece_grounded()) {
-            active.x += 1;
+            active.x = current_piece.x;
             active.y -= 1;
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
                 current_piece.y -= 1;
                 current_piece.floor_kicked = true;
             }
+
+            if (big_mode || big_piece) {
+                active.y -= 1;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.y -= 2;
+                    current_piece.floor_kicked = true;
+                }
+            }
         }
     }
 }
 
 void check_clears() {
-    for (int i = 0; i < 21; ++i) clears[i] = -1;
+    for (int i = 0; i < 24; ++i) clears[i] = -1;
 
     int ct = 0;
-    for (int i = 0; i < (21 - (frozen_ignore_next ? 0 : frozen_rows)); i++) {
+    for (int i = 0; i < (24 - (frozen_ignore_next ? 0 : frozen_rows)); i++) {
         if (
             field[0][i].type != BLOCK_VOID &&
             field[1][i].type != BLOCK_VOID &&
@@ -673,7 +814,7 @@ void check_clears() {
     }
 
     if (frozen_rows > 0 && ct == 0 && !frozen_ignore_next) {
-        for (int i = 21 - frozen_rows; i < 21; i++) {
+        for (int i = 24 - frozen_rows; i < 24; i++) {
             if (
                 field[0][i].type != BLOCK_VOID &&
                 field[1][i].type != BLOCK_VOID &&
@@ -700,7 +841,7 @@ void check_clears() {
 }
 
 void wipe_clears() {
-    for (int i = 0; i < 21; ++i) {
+    for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) break;
         field[0][clears[i]].type = BLOCK_VOID;
         field[1][clears[i]].type = BLOCK_VOID;
@@ -716,7 +857,7 @@ void wipe_clears() {
 }
 
 void collapse_clears() {
-    for (int i = 0; i < 21; ++i) {
+    for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) break;
         for (int j = clears[i]; j > 0; j--) {
             field[0][j] = field[0][j-1];
@@ -872,7 +1013,8 @@ void do_hold(bool ihs) {
     }
 
     current_piece.x = 3;
-    current_piece.y = -1;
+    if (big_mode || big_piece) current_piece.x = 2;
+    current_piece.y = 2;
     current_piece.lock_param = 1.0f;
     current_piece.lock_status = LOCK_UNLOCKED;
     current_piece.rotation_state = 0;
@@ -912,7 +1054,8 @@ void generate_next_piece() {
     next_piece[1] = next_piece[2];
     next_piece[2] = result;
     current_piece.x = 3;
-    current_piece.y = -1;
+    if (big_mode || big_piece) current_piece.x = 2;
+    current_piece.y = 2;
     current_piece.lock_param = 1.0f;
     current_piece.lock_status = LOCK_UNLOCKED;
     current_piece.rotation_state = 0;
@@ -997,9 +1140,9 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     SDL_FRect src = {0};
     SDL_FRect dest = {
         .x = FIELD_X_OFFSET + ((float)col * 16.0f),
-        .y = FIELD_Y_OFFSET + ((float)row * 16.0f),
-        .w = 16.0f,
-        .h = 16.0f
+        .y = FIELD_Y_OFFSET + ((float)row * 16.0f) - (((big_mode || big_piece) && (lockStatus == LOCK_UNLOCKED || lockStatus == LOCK_GHOST || lockStatus == LOCK_FLASH)) ? 16.0f : 0.0f),
+        .w = ((big_mode || big_piece) && (lockStatus == LOCK_UNLOCKED || lockStatus == LOCK_GHOST || lockStatus == LOCK_FLASH)) ? 32.0f : 16.0f,
+        .h = ((big_mode || big_piece) && (lockStatus == LOCK_UNLOCKED || lockStatus == LOCK_GHOST || lockStatus == LOCK_FLASH)) ? 32.0f : 16.0f
     };
     float w, h;
     SDL_GetTextureSize(block_texture, &w, &h);
@@ -1149,12 +1292,12 @@ float update_and_get_fade_state(block_t *block) {
 }
 
 void render_field_block(const int x, const int y) {
-    if(x < 0 || x > 9 || y < 1 || y > 20) return;
+    if(x < 0 || x > 9 || y < 1 || y > 23) return;
     const bool voidToLeft = x != 0 && field[x-1][y].type == BLOCK_VOID;
     const bool voidToRight = x != 9 && field[x+1][y].type == BLOCK_VOID;
-    const bool voidAbove = y != 1 && field[x][y-1].type == BLOCK_VOID;
-    const bool voidBelow = y != 20 && field[x][y+1].type == BLOCK_VOID;
-    render_raw_block(x, y-1, field[x][y].type, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow, update_and_get_fade_state(&field[x][y]));
+    const bool voidAbove = y != 4 && field[x][y-1].type == BLOCK_VOID;
+    const bool voidBelow = y != 23 && field[x][y+1].type == BLOCK_VOID;
+    render_raw_block(x, y-4, field[x][y].type, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow, update_and_get_fade_state(&field[x][y]));
 }
 
 void render_held_block() {
@@ -1262,7 +1405,7 @@ void render_current_block() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
-                render_raw_block(current_piece.x + i, current_piece.y + j, active_piece_is_bone ? BLOCK_BONE : current_piece.type, current_piece.lock_status, current_piece.lock_param, false, false, false, false, 1);
+                render_raw_block(current_piece.x + i + ((big_mode || big_piece) ? i : 0), current_piece.y + j + ((big_mode || big_piece) ? j : 0) - 3, active_piece_is_bone ? BLOCK_BONE : current_piece.type, current_piece.lock_status, current_piece.lock_param, false, false, false, false, 1);
             }
         }
     }
@@ -1281,7 +1424,7 @@ void render_tls() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
-                render_raw_block(active.x + i, active.y + j, active_piece_is_bone ? BLOCK_BONE : active.type, LOCK_GHOST, active.lock_param, false, false, false, false, 1);
+                render_raw_block(active.x + i + ((big_mode || big_piece) ? i : 0), active.y + j + ((big_mode || big_piece) ? j : 0) - 3, active_piece_is_bone ? BLOCK_BONE : active.type, LOCK_GHOST, active.lock_param, false, false, false, false, 1);
             }
         }
     }
@@ -1289,7 +1432,7 @@ void render_tls() {
 
 void render_field() {
     for (int x = 0; x < 10; x++) {
-        for (int y = 1; y < 21; y++) {
+        for (int y = 4; y < 24; y++) {
             render_field_block(x, y);
         }
     }
@@ -1297,7 +1440,7 @@ void render_field() {
 
 void toggle_details() {
     DETAILS = !DETAILS;
-    SDL_SetWindowSize(window, DETAILS ? 26*16*RENDER_SCALE : 12*16*RENDER_SCALE, 26*16*RENDER_SCALE);
+    apply_scale();
 }
 
 void render_details() {
@@ -1540,7 +1683,7 @@ void render_game() {
         dst.w = 10.0f*16.0f;
         dst.h = (float)frozen_rows*16.0f;
         dst.x = FIELD_X_OFFSET;
-        dst.y = FIELD_Y_OFFSET + ((20.0f-(float)frozen_rows)*16.0f);
+        dst.y = FIELD_Y_OFFSET + ((20.0f-(float)((frozen_rows > 20) ? 20 : frozen_rows))*16.0f);
         SDL_RenderFillRect(renderer, &dst);
         SDL_SetRenderDrawColorFloat(renderer, 0.45f, 0.61f, 0.82f, 0.8f);
         dst.h = 2.0f;
@@ -1567,66 +1710,52 @@ void render_game() {
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
         SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
 
-        y_offset = 5.5f;
+        y_offset = 12.5f;
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
 
-        y_offset += 0.5f;
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "Keyboard:");
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetScancodeName(BUTTON_LEFT), SDL_GetScancodeName(BUTTON_RIGHT));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Sonic drop", SDL_GetScancodeName(BUTTON_SONIC_DROP));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Soft drop", SDL_GetScancodeName(BUTTON_SOFT_DROP));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Hard drop", SDL_GetScancodeName(BUTTON_HARD_DROP));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s: Rotate CCW", SDL_GetScancodeName(BUTTON_CCW_1), SDL_GetScancodeName(BUTTON_CCW_2));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Rotate CW", SDL_GetScancodeName(BUTTON_CW));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Hold", SDL_GetScancodeName(BUTTON_HOLD));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Start game", SDL_GetScancodeName(BUTTON_START));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Reset game", SDL_GetScancodeName(BUTTON_RESET));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Quit game", SDL_GetScancodeName(BUTTON_QUIT));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Scale down", SDL_GetScancodeName(BUTTON_SCALE_DOWN));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Scale up", SDL_GetScancodeName(BUTTON_SCALE_UP));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Mute/unmute", SDL_GetScancodeName(BUTTON_MUTE));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Toggle details pane", SDL_GetScancodeName(BUTTON_DETAILS));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Toggle background transparency", SDL_GetScancodeName(BUTTON_TOGGLE_TRANSPARENCY));
+        y_offset += 1.0f;
+        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "Keyboard (Gamepad):");
 
+        for (int i = 0; i < controls_list_len; ++i) {
+            int32_t *button = controls_list[i].button;
+            int32_t *gamepad = controls_list[i].gamepad;
+            char *desc = controls_list[i].description;
 
-        y_offset += 0.5f;
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "Gamepad:");
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s: Left/right", SDL_GetGamepadStringForButton(GAMEPAD_LEFT), SDL_GetGamepadStringForButton(GAMEPAD_RIGHT));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Sonic drop", SDL_GetGamepadStringForButton(GAMEPAD_SONIC_DROP));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Soft drop", SDL_GetGamepadStringForButton(GAMEPAD_SOFT_DROP));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Hard drop", SDL_GetGamepadStringForButton(GAMEPAD_HARD_DROP));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s: Rotate CCW", SDL_GetGamepadStringForButton(GAMEPAD_CCW_1), SDL_GetGamepadStringForButton(GAMEPAD_CCW_2));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Rotate CW", SDL_GetGamepadStringForButton(GAMEPAD_CW));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Hold", SDL_GetGamepadStringForButton(GAMEPAD_HOLD));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Start game", SDL_GetGamepadStringForButton(GAMEPAD_START));
-        y_offset += 0.5f;
-        SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: Reset game", SDL_GetGamepadStringForButton(GAMEPAD_RESET));
-
+            if (*button != SDL_SCANCODE_UNKNOWN && *gamepad != SDL_GAMEPAD_BUTTON_INVALID) {
+                y_offset += 0.5f;
+                if (button == &BUTTON_LEFT) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s (%s/%s): %s", SDL_GetScancodeName(BUTTON_LEFT), SDL_GetScancodeName(BUTTON_RIGHT), SDL_GetGamepadStringForButton(GAMEPAD_LEFT), SDL_GetGamepadStringForButton(GAMEPAD_RIGHT), desc);
+                } else if (button == &BUTTON_CCW_1) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s (%s/%s): %s", SDL_GetScancodeName(BUTTON_CCW_1), SDL_GetScancodeName(BUTTON_CCW_2), SDL_GetGamepadStringForButton(GAMEPAD_CCW_1), SDL_GetGamepadStringForButton(GAMEPAD_CCW_2), desc);
+                } else if (button == &BUTTON_SCALE_DOWN) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s (%s/%s): %s", SDL_GetScancodeName(BUTTON_SCALE_DOWN), SDL_GetScancodeName(BUTTON_SCALE_UP), SDL_GetGamepadStringForButton(GAMEPAD_SCALE_DOWN), SDL_GetGamepadStringForButton(GAMEPAD_SCALE_UP), desc);
+                } else {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s (%s): %s", SDL_GetScancodeName(*button), SDL_GetGamepadStringForButton(*gamepad), desc);
+                }
+            } else if (*button != SDL_SCANCODE_UNKNOWN) {
+                y_offset += 0.5f;
+                if (button == &BUTTON_LEFT) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s: %s", SDL_GetScancodeName(BUTTON_LEFT), SDL_GetScancodeName(BUTTON_RIGHT), desc);
+                } else if (button == &BUTTON_CCW_1) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s: %s", SDL_GetScancodeName(BUTTON_CCW_1), SDL_GetScancodeName(BUTTON_CCW_2), desc);
+                } else if (button == &BUTTON_SCALE_DOWN) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s/%s: %s", SDL_GetScancodeName(BUTTON_SCALE_DOWN), SDL_GetScancodeName(BUTTON_SCALE_UP), desc);
+                } else {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- %s: %s", SDL_GetScancodeName(*button), desc);
+                }
+            } else if (*gamepad != SDL_GAMEPAD_BUTTON_INVALID) {
+                y_offset += 0.5f;
+                if (button == &BUTTON_LEFT) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- (%s/%s): %s", SDL_GetGamepadStringForButton(GAMEPAD_LEFT), SDL_GetGamepadStringForButton(GAMEPAD_RIGHT), desc);
+                } else if (button == &BUTTON_CCW_1) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- (%s/%s): %s", SDL_GetGamepadStringForButton(GAMEPAD_CCW_1), SDL_GetGamepadStringForButton(GAMEPAD_CCW_2), desc);
+                } else if (button == &BUTTON_SCALE_DOWN) {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- (%s/%s): %s", SDL_GetGamepadStringForButton(GAMEPAD_SCALE_DOWN), SDL_GetGamepadStringForButton(GAMEPAD_SCALE_UP), desc);
+                } else {
+                    SDL_RenderDebugTextFormat(renderer, 40.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "- (%s): %s", SDL_GetGamepadStringForButton(*gamepad), desc);
+                }
+            }
+        }
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
     }
 
@@ -1658,6 +1787,9 @@ void do_reset() {
     queue_is_bone[1] = false;
     queue_is_bone[2] = false;
     ti_garbage_quota = false;
+    big_mode = false;
+    big_piece = false;
+    big_mode_half_columns = false;
 }
 
 void update_details() {
@@ -1684,7 +1816,7 @@ bool state_machine_tick() {
     update_input_states();
 
     // Quit?
-    if (IS_JUST_HELD(button_quit_held)) return false;
+    if (IS_JUST_HELD(button_reset_held) && game_state == STATE_WAIT) return false;
 
     // Details?
     if (IS_JUST_HELD(button_details_held)) toggle_details();
@@ -1699,7 +1831,7 @@ bool state_machine_tick() {
     if (IS_JUST_HELD(button_mystery_held)) mystery = !mystery;
 
     // Reset?
-    if (IS_JUST_HELD(button_reset_held)) {
+    if (IS_JUST_HELD(button_reset_held) && game_state != STATE_WAIT) {
         do_reset();
         return true;
     }
@@ -1804,8 +1936,10 @@ bool state_machine_tick() {
             button_r_held = 0;
         } else if (IS_JUST_HELD(button_l_held) || IS_HELD_FOR_AT_LEAST(button_l_held, current_timing->das)) {
             try_move(-1);
+            if (big_mode && !big_mode_half_columns && current_piece.x % 2 == 1) try_move(-1);
         } else if (IS_JUST_HELD(button_r_held) || IS_HELD_FOR_AT_LEAST(button_r_held, current_timing->das)) {
             try_move(1);
+            if (big_mode && !big_mode_half_columns && current_piece.x % 2 == 1) try_move(1);
         }
 
         // Gravity.
@@ -1865,9 +1999,11 @@ bool state_machine_tick() {
             wipe_clears();
             game_state_ctr = current_timing->clear;
             game_state = STATE_CLEAR;
+            big_piece = false;
         } else {
             game_state = STATE_ARE;
             game_state_ctr = current_timing->are - 3;
+            big_piece = false;
         }
     } else if (game_state == STATE_CLEAR) {
         update_details();
@@ -1962,6 +2098,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetAppMetadata("Tinytris", "1.0", "org.villadelfia.tinytris");
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD);
     SDL_CreateWindowAndRenderer("Tinytris", 12*16*RENDER_SCALE, 26*16*RENDER_SCALE, SDL_WINDOW_TRANSPARENT | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_BORDERLESS, &window, &renderer);
+    old_w = 0;
+    old_h = 0;
     SDL_SetRenderScale(renderer, 1.0f * (float)RENDER_SCALE, 1.0f * (float)RENDER_SCALE);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     apply_scale();

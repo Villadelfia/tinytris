@@ -19,7 +19,6 @@ int32_t BUTTON_CW = SDL_SCANCODE_K;
 int32_t BUTTON_HOLD = SDL_SCANCODE_M;
 int32_t BUTTON_RESET = SDL_SCANCODE_R;
 int32_t BUTTON_START = SDL_SCANCODE_RETURN;
-int32_t BUTTON_QUIT = SDL_SCANCODE_ESCAPE;
 int32_t BUTTON_SCALE_UP = SDL_SCANCODE_EQUALS;
 int32_t BUTTON_SCALE_DOWN = SDL_SCANCODE_MINUS;
 int32_t BUTTON_MUTE = SDL_SCANCODE_P;
@@ -38,13 +37,34 @@ int32_t GAMEPAD_CW = SDL_GAMEPAD_BUTTON_EAST;
 int32_t GAMEPAD_HOLD = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
 int32_t GAMEPAD_RESET = SDL_GAMEPAD_BUTTON_BACK;
 int32_t GAMEPAD_START = SDL_GAMEPAD_BUTTON_START;
-int32_t GAMEPAD_QUIT = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_SCALE_UP = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_SCALE_DOWN = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MUTE = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MYSTERY = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_DETAILS = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_TOGGLE_TRANSPARENCY = SDL_GAMEPAD_BUTTON_INVALID;
+
+typedef struct {
+    int32_t *button;
+    int32_t *gamepad;
+    char *description;
+} control_t;
+
+size_t controls_list_len = 12;
+control_t controls_list[12] = {
+    {&BUTTON_LEFT, &GAMEPAD_LEFT, "Left/right"},
+    {&BUTTON_SONIC_DROP, &GAMEPAD_SONIC_DROP, "Sonic drop/up"},
+    {&BUTTON_SOFT_DROP, &GAMEPAD_SOFT_DROP, "Soft drop/down"},
+    {&BUTTON_HARD_DROP, &GAMEPAD_HARD_DROP, "Hard drop"},
+    {&BUTTON_CCW_1, &GAMEPAD_CCW_1, "Rotate CCW"},
+    {&BUTTON_CW, &GAMEPAD_CW, "Rotate CW"},
+    {&BUTTON_HOLD, &GAMEPAD_HOLD, "Hold"},
+    {&BUTTON_RESET, &GAMEPAD_RESET, "Reset/quit game"},
+    {&BUTTON_SCALE_DOWN, &GAMEPAD_SCALE_DOWN, "Rescale game"},
+    {&BUTTON_MUTE, &GAMEPAD_MUTE, "Toggle audio"},
+    {&BUTTON_DETAILS, &GAMEPAD_DETAILS, "Toggle details"},
+    {&BUTTON_TOGGLE_TRANSPARENCY, &GAMEPAD_TOGGLE_TRANSPARENCY, "Toggle transparency"}
+};
 
 int RENDER_SCALE = 2;
 bool TRANSPARENCY = true;
@@ -93,8 +113,9 @@ char START_LEVEL_STRING[16] = {0};
 #define HOLD_SETTING_IDX 4
 #define GRAVITY_SETTING_IDX 5
 #define INVISIBILITY_SETTING_IDX 6
-#define STARTING_LEVEL_SETTING_IDX 7
-#define SETTINGS_COUNT 8
+#define BIG_MODE_SETTING_IDX 7
+#define STARTING_LEVEL_SETTING_IDX 8
+#define SETTINGS_COUNT 9
 
 int selected_setting = 0;
 int settings_values[SETTINGS_COUNT] = {
@@ -105,6 +126,7 @@ int settings_values[SETTINGS_COUNT] = {
     1, // Hold enabled
     0, // 20G mode
     0, // Invisibility
+    0, // Big mode
     0  // Starting level
 };
 int settings_limits[SETTINGS_COUNT] = {
@@ -115,6 +137,7 @@ int settings_limits[SETTINGS_COUNT] = {
     2,
     2,
     3,
+    2,
     1
 };
 char *settings_strings[SETTINGS_COUNT][4] = {
@@ -167,6 +190,14 @@ char *settings_strings[SETTINGS_COUNT][4] = {
         "Vision: Fading",
         "Vision: Invis.",
         ""
+    },
+
+    // Big mode
+    {
+        "Big mode: Off",
+        "Big mode: On",
+        "",
+        "",
     },
 
     // Starting level is stored elsewhere.
@@ -429,7 +460,7 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "hold") == 0) BUTTON_HOLD = s;
         if (SDL_strcasecmp(name, "reset") == 0) BUTTON_RESET = s;
         if (SDL_strcasecmp(name, "start") == 0) BUTTON_START = s;
-        if (SDL_strcasecmp(name, "quit") == 0) BUTTON_QUIT = s;
+        if (SDL_strcasecmp(name, "quit") == 0) BUTTON_RESET = s;
         if (SDL_strcasecmp(name, "scale_up") == 0) BUTTON_SCALE_UP = s;
         if (SDL_strcasecmp(name, "scale_down") == 0) BUTTON_SCALE_DOWN = s;
         if (SDL_strcasecmp(name, "mute") == 0) BUTTON_MUTE = s;
@@ -451,7 +482,7 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "hold") == 0) GAMEPAD_HOLD = s;
         if (SDL_strcasecmp(name, "reset") == 0) GAMEPAD_RESET = s;
         if (SDL_strcasecmp(name, "start") == 0) GAMEPAD_START = s;
-        if (SDL_strcasecmp(name, "quit") == 0) GAMEPAD_QUIT = s;
+        if (SDL_strcasecmp(name, "quit") == 0) GAMEPAD_RESET = s;
         if (SDL_strcasecmp(name, "scale_up") == 0) GAMEPAD_SCALE_UP = s;
         if (SDL_strcasecmp(name, "scale_down") == 0) GAMEPAD_SCALE_DOWN = s;
         if (SDL_strcasecmp(name, "mute") == 0) GAMEPAD_MUTE = s;
@@ -501,6 +532,7 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "smooth_gravity") == 0) SMOOTH_GRAVITY = v != 0;
         if (SDL_strcasecmp(name, "field_transparency") == 0) FIELD_TRANSPARENCY = (float)v/100.0f;
         if (SDL_strcasecmp(name, "rotation_system") == 0) settings_values[ROTATION_SETTING_IDX] = v == 0 ? 0 : 1;
+        if (SDL_strcasecmp(name, "big_mode") == 0) settings_values[BIG_MODE_SETTING_IDX] = v == 0 ? 0 : 1;
         if (SDL_strcasecmp(name, "rng_mode") == 0) {
             settings_values[RNG_SETTING_IDX] = v;
             if (settings_values[RNG_SETTING_IDX] < 0) settings_values[RNG_SETTING_IDX] = 0;

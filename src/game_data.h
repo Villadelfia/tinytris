@@ -261,8 +261,8 @@ char* tgm2_plus_sequence[] = {
     "XXX   XXXX"
 };
 
-size_t effects_list_len = 11;
-effect_def_t effects_list[11] = {
+size_t effects_list_len = 14;
+effect_def_t effects_list[14] = {
     {"TORIKAN_SCOPE_SECTION", TORIKAN_SCOPE_MASK},
     //{"TORIKAN_SCOPE_GAME", 0},
     {"TORIKAN_EFFECT_GAMEOVER", TORIKAN_EFFECT_MASK},
@@ -277,5 +277,8 @@ effect_def_t effects_list[11] = {
     {"VISIBILITY_HINT_LOCKFLASH", INVISIBILITY_HINT_FLASH_MASK},
     {"FROZEN_ROWS_CLEAR", FROZEN_RESET_MASK},
     {"CLEAR_FIELD", CLEAR_FIELD_MASK},
-    {"BONES_SKIN", BONES_MASK}
+    {"BONES_SKIN", BONES_MASK},
+    {"BIG_HALF_PIECE", BIG_MODE_HALF_PIECE_MASK},
+    {"BIG_MODE", BIG_MODE_MASK},
+    {"BIG_PIECE", BIG_PIECE_MASK}
 };
