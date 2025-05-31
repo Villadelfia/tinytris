@@ -83,6 +83,7 @@ bool ti_garbage_quota = false;
 bool big_mode = false;
 bool big_mode_half_columns = false;
 bool big_piece = false;
+bool selective_gravity = false;
 int old_w = 0;
 int old_h = 0;
 
@@ -337,6 +338,7 @@ void check_effect() {
     bool invisibility_hint_once = (effect & INVISIBILITY_HINT_ONCE_MASK) != 0;
     bool invisibility_hint_flash = (effect & INVISIBILITY_HINT_FLASH_MASK) != 0;
     bool tgm2_plus_sequence = (effect & TGM2_PLUS_SEQUENCE_MASK) != 0;
+    selective_gravity = (effect & SELECTIVE_GRAVITY_MASK) != 0;
     int prev_frozen = frozen_rows;
     frozen_rows = current_timing->freeze;
     if (frozen_rows < 0) frozen_rows = 0;
@@ -857,6 +859,10 @@ void wipe_clears() {
 }
 
 void collapse_clears() {
+    if (selective_gravity) {
+        lines_cleared = 0;
+        return;
+    }
     for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) break;
         for (int j = clears[i]; j > 0; j--) {
@@ -1790,6 +1796,7 @@ void do_reset() {
     big_mode = false;
     big_piece = false;
     big_mode_half_columns = false;
+    selective_gravity = false;
 }
 
 void update_details() {

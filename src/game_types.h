@@ -124,3 +124,4 @@ typedef struct {
 #define BIG_MODE_MASK                (0x00000800)
 #define BIG_PIECE_MASK               (0x00001000)
 #define BIG_MODE_HALF_PIECE_MASK     (0x00002000)
+#define SELECTIVE_GRAVITY_MASK       (0x00004000)
