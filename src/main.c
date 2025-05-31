@@ -840,6 +840,29 @@ void try_rotate(const int direction) {
     }
 }
 
+int get_first_occupied_row() {
+    int first_occupied = -1;
+
+    for (int i = 0; i < 24; ++i) {
+        if (
+            field[0][i].type != BLOCK_VOID ||
+            field[1][i].type != BLOCK_VOID ||
+            field[2][i].type != BLOCK_VOID ||
+            field[3][i].type != BLOCK_VOID ||
+            field[4][i].type != BLOCK_VOID ||
+            field[5][i].type != BLOCK_VOID ||
+            field[6][i].type != BLOCK_VOID ||
+            field[7][i].type != BLOCK_VOID ||
+            field[8][i].type != BLOCK_VOID ||
+            field[9][i].type != BLOCK_VOID) {
+            first_occupied = i;
+            break;
+            }
+    }
+
+    return first_occupied;
+}
+
 void do_shotgun() {
     for (int x = 0; x < 10; ++x) {
         for (int y = 0; y < 24; ++y) {
@@ -859,24 +882,7 @@ void do_laser() {
 }
 
 void do_negate() {
-    int first_occupied = -1;
-
-    for (int i = 0; i < 24; ++i) {
-        if (
-            field[0][i].type != BLOCK_VOID ||
-            field[1][i].type != BLOCK_VOID ||
-            field[2][i].type != BLOCK_VOID ||
-            field[3][i].type != BLOCK_VOID ||
-            field[4][i].type != BLOCK_VOID ||
-            field[5][i].type != BLOCK_VOID ||
-            field[6][i].type != BLOCK_VOID ||
-            field[7][i].type != BLOCK_VOID ||
-            field[8][i].type != BLOCK_VOID ||
-            field[9][i].type != BLOCK_VOID) {
-            first_occupied = i;
-            break;
-        }
-    }
+    int first_occupied = get_first_occupied_row();
 
     if (first_occupied == -1) return;
 
@@ -994,15 +1000,17 @@ bool is_in_cleared_lines_list(int line) {
 }
 
 void do_del_lower() {
+    int first_occupied = get_first_occupied_row();
+    if (first_occupied == -1) return;
     if (lines_cleared == 0) {
         for (int i = 0; i < 24; ++i) clears[i] = -1;
-        for (int i = 14; i < 24; ++i) clears[i-14] = i;
+        for (int i = (24 + first_occupied) / 2; i < 24; ++i) clears[i] = i;
         play_sound(&lineclear_sound);
         wipe_clears();
         game_state = STATE_CLEAR;
         game_state_ctr = current_timing->clear;
     } else {
-        int current_line = 14;
+        int current_line = (24 + first_occupied) / 2;
         for (int i = 0; i < 24; ++i) {
             if (clears[i] != -1) continue;
             if (!is_in_cleared_lines_list(current_line)) {
@@ -1015,22 +1023,24 @@ void do_del_lower() {
 }
 
 void do_del_upper() {
+    int first_occupied = get_first_occupied_row();
+    if (first_occupied == -1) return;
     if (lines_cleared == 0) {
         for (int i = 0; i < 24; ++i) clears[i] = -1;
-        for (int i = 0; i < 14; ++i) clears[i] = i;
+        for (int i = first_occupied; i < (24 + first_occupied) / 2; ++i) clears[i] = i;
         play_sound(&lineclear_sound);
         wipe_clears();
         game_state = STATE_CLEAR;
         game_state_ctr = current_timing->clear;
     } else {
-        int current_line = 0;
+        int current_line = first_occupied;
         for (int i = 0; i < 24; ++i) {
             if (clears[i] != -1) continue;
             if (!is_in_cleared_lines_list(current_line)) {
                 clears[i] = current_line;
             }
             current_line++;
-            if (current_line >= 14) break;
+            if (current_line >= (24 + first_occupied) / 2) break;
         }
     }
 }
