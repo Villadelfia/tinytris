@@ -261,8 +261,8 @@ char* tgm2_plus_sequence[] = {
     "XXX   XXXX"
 };
 
-size_t effects_list_len = 14;
-effect_def_t effects_list[14] = {
+size_t effects_list_len = 15;
+effect_def_t effects_list[15] = {
     {"TORIKAN_SCOPE_SECTION", TORIKAN_SCOPE_MASK},
     //{"TORIKAN_SCOPE_GAME", 0},
     {"TORIKAN_EFFECT_GAMEOVER", TORIKAN_EFFECT_MASK},
