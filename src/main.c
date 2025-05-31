@@ -132,6 +132,28 @@ int32_t button_details_held = 0;
 void check_clears();
 void wipe_clears();
 void collapse_clears();
+void do_shotgun();
+void do_laser();
+void do_negate();
+void do_del_lower();
+void do_del_upper();
+void do_del_even();
+void do_push_left();
+void do_push_right();
+void do_push_down();
+
+static int SDLCALL compare_int(const void *a, const void *b) {
+    const int A = *(const int *)a;
+    const int B = *(const int *)b;
+
+    if (A < B) {
+        return -1;
+    } else if (B < A) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
 
 rotation_state_t get_rotation_state(const block_type_t piece, const int rotation_state) {
     return ROTATION_STATES[piece][rotation_state];
@@ -338,6 +360,15 @@ void check_effect() {
     bool invisibility_hint_once = (effect & INVISIBILITY_HINT_ONCE_MASK) != 0;
     bool invisibility_hint_flash = (effect & INVISIBILITY_HINT_FLASH_MASK) != 0;
     bool tgm2_plus_sequence = (effect & TGM2_PLUS_SEQUENCE_MASK) != 0;
+    bool should_do_shotgun = (effect & FIELD_SHOTGUN_MASK) != 0;
+    bool should_do_laser = (effect & FIELD_LASER_MASK) != 0;
+    bool should_do_negate = (effect & FIELD_NEGATE_MASK) != 0;
+    bool should_do_del_upper = (effect & FIELD_DEL_UPPER_MASK) != 0;
+    bool should_do_del_lower = (effect & FIELD_DEL_LOWER_MASK) != 0;
+    bool should_do_del_even = (effect & FIELD_DEL_EVEN_MASK) != 0;
+    bool should_do_push_left = (effect & FIELD_PUSH_LEFT_MASK) != 0;
+    bool should_do_push_right = (effect & FIELD_PUSH_RIGHT_MASK) != 0;
+    bool should_do_push_down = (effect & FIELD_PUSH_DOWN_MASK) != 0;
     selective_gravity = (effect & SELECTIVE_GRAVITY_MASK) != 0;
     int prev_frozen = frozen_rows;
     frozen_rows = current_timing->freeze;
@@ -398,6 +429,16 @@ void check_effect() {
         }
     }
 
+    if (should_do_shotgun) do_shotgun();
+    if (should_do_laser) do_laser();
+    if (should_do_negate) do_negate();
+    if (should_do_del_even) do_del_even();
+    if (should_do_del_lower) do_del_lower();
+    if (should_do_del_upper) do_del_upper();
+    if (should_do_push_left) do_push_left();
+    if (should_do_push_right) do_push_right();
+    if (should_do_push_down) do_push_down();
+
     if (invisibility_hint_once) {
         show_edge_timer = 60;
     }
@@ -429,6 +470,10 @@ void increment_level_piece_spawn() {
         current_timing = current_timing+1;
         check_garbage();
         check_effect();
+        if (lines_cleared != 0) {
+            game_state = STATE_LOCKFLASH;
+            game_state_ctr = 3;
+        }
     }
 }
 
@@ -795,6 +840,54 @@ void try_rotate(const int direction) {
     }
 }
 
+void do_shotgun() {
+    for (int x = 0; x < 10; ++x) {
+        for (int y = 0; y < 24; ++y) {
+            if (field[x][y].type != BLOCK_VOID) {
+                if ((xoroshiro_next() % 32) == 0) field[x][y].type = BLOCK_VOID;
+            }
+        }
+    }
+}
+
+void do_laser() {
+    int column = (int)xoroshiro_next() % 16;
+    while (column > 9) column = (int)xoroshiro_next() % 16;
+    for (int y = 0; y < 24; ++y) {
+        field[column][y].type = BLOCK_VOID;
+    }
+}
+
+void do_negate() {
+    int first_occupied = -1;
+
+    for (int i = 0; i < 24; ++i) {
+        if (
+            field[0][i].type != BLOCK_VOID ||
+            field[1][i].type != BLOCK_VOID ||
+            field[2][i].type != BLOCK_VOID ||
+            field[3][i].type != BLOCK_VOID ||
+            field[4][i].type != BLOCK_VOID ||
+            field[5][i].type != BLOCK_VOID ||
+            field[6][i].type != BLOCK_VOID ||
+            field[7][i].type != BLOCK_VOID ||
+            field[8][i].type != BLOCK_VOID ||
+            field[9][i].type != BLOCK_VOID) {
+            first_occupied = i;
+            break;
+        }
+    }
+
+    if (first_occupied == -1) return;
+
+    for (int x = 0; x < 10; ++x) {
+        for (int y = first_occupied; y < 24; ++y) {
+            if (field[x][y].type != BLOCK_VOID) field[x][y].type = BLOCK_VOID;
+            else field[x][y].type = BLOCK_X;
+        }
+    }
+}
+
 void check_clears() {
     for (int i = 0; i < 24; ++i) clears[i] = -1;
 
@@ -844,7 +937,7 @@ void check_clears() {
 
 void wipe_clears() {
     for (int i = 0; i < 24; ++i) {
-        if (clears[i] == -1) break;
+        if (clears[i] == -1) continue;
         field[0][clears[i]].type = BLOCK_VOID;
         field[1][clears[i]].type = BLOCK_VOID;
         field[2][clears[i]].type = BLOCK_VOID;
@@ -863,8 +956,10 @@ void collapse_clears() {
         lines_cleared = 0;
         return;
     }
+    SDL_qsort(clears, 24, sizeof(int), compare_int);
+
     for (int i = 0; i < 24; ++i) {
-        if (clears[i] == -1) break;
+        if (clears[i] == -1) continue;
         for (int j = clears[i]; j > 0; j--) {
             field[0][j] = field[0][j-1];
             field[1][j] = field[1][j-1];
@@ -889,6 +984,122 @@ void collapse_clears() {
         field[9][0].type = BLOCK_VOID;
     }
     lines_cleared = 0;
+}
+
+bool is_in_cleared_lines_list(int line) {
+    for (int i = 0; i < 24; ++i) {
+        if (clears[i] == line) return true;
+    }
+    return false;
+}
+
+void do_del_lower() {
+    if (lines_cleared == 0) {
+        for (int i = 0; i < 24; ++i) clears[i] = -1;
+        for (int i = 14; i < 24; ++i) clears[i-14] = i;
+        play_sound(&lineclear_sound);
+        wipe_clears();
+        game_state = STATE_CLEAR;
+        game_state_ctr = current_timing->clear;
+    } else {
+        int current_line = 14;
+        for (int i = 0; i < 24; ++i) {
+            if (clears[i] != -1) continue;
+            if (!is_in_cleared_lines_list(current_line)) {
+                clears[i] = current_line;
+            }
+            current_line++;
+            if (current_line == 24) break;
+        }
+    }
+}
+
+void do_del_upper() {
+    if (lines_cleared == 0) {
+        for (int i = 0; i < 24; ++i) clears[i] = -1;
+        for (int i = 0; i < 14; ++i) clears[i] = i;
+        play_sound(&lineclear_sound);
+        wipe_clears();
+        game_state = STATE_CLEAR;
+        game_state_ctr = current_timing->clear;
+    } else {
+        int current_line = 0;
+        for (int i = 0; i < 24; ++i) {
+            if (clears[i] != -1) continue;
+            if (!is_in_cleared_lines_list(current_line)) {
+                clears[i] = current_line;
+            }
+            current_line++;
+            if (current_line >= 14) break;
+        }
+    }
+}
+
+void do_del_even() {
+    if (lines_cleared == 0) {
+        for (int i = 0; i < 24; ++i) clears[i] = -1;
+        for (int i = 0; i < 12; ++i) clears[i] = i*2;
+        play_sound(&lineclear_sound);
+        wipe_clears();
+        game_state = STATE_CLEAR;
+        game_state_ctr = current_timing->clear;
+    } else {
+        int current_line = 0;
+        for (int i = 0; i < 24; ++i) {
+            if (clears[i] != -1) continue;
+            if (!is_in_cleared_lines_list(current_line)) {
+                clears[i] = current_line;
+            }
+            current_line += 2;
+            if (current_line >= 24) break;
+        }
+    }
+}
+
+void do_push_left() {
+    for (int y = 0; y < 24; ++y) {
+        int left_most_taken = 0;
+        for (int x = 0; x < 10; ++x) {
+            if (field[x][y].type != BLOCK_VOID) {
+                if (x != left_most_taken) {
+                    field[left_most_taken][y] = field[x][y];
+                    field[x][y].type = BLOCK_VOID;
+                }
+                left_most_taken++;
+            }
+        }
+    }
+}
+
+void do_push_right() {
+    for (int y = 0; y < 24; ++y) {
+        int right_most_taken = 9;
+        for (int x = 9; x >= 0; --x) {
+            if (field[x][y].type != BLOCK_VOID) {
+                if (x != right_most_taken) {
+                    field[right_most_taken][y] = field[x][y];
+                    field[x][y].type = BLOCK_VOID;
+                }
+                right_most_taken--;
+            }
+        }
+    }
+}
+
+void do_push_down() {
+    for (int x = 0; x < 10; ++x) {
+        int bottom_most_taken = 23;
+        for (int y = 23; y >= 0; --y) {
+            if (field[x][y].type != BLOCK_VOID) {
+                if (y != bottom_most_taken) {
+                    field[x][bottom_most_taken] = field[x][y];
+                    field[x][y].type = BLOCK_VOID;
+                }
+                bottom_most_taken--;
+            }
+        }
+    }
+    check_clears();
 }
 
 int get_gravity() {

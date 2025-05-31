@@ -89,3 +89,12 @@ name = TAP-Master M
 ;   - BIG_HALF_PIECE: Field modifier. Big mode will work like it did in TGM1.
 ;   - BIG_PIECE: Field modifier. The next piece will be drawn big.
 ;   - SELECTIVE_GRAVITY: Game modifier. While this flag is active, cleared lines disappear but do not compact down.
+;   - FIELD_SHOTGUN: Field modifier. The field will be filled with holes.
+;   - FIELD_LASER: Field modifier. A random column will get cleared.
+;   - FIELD_NEGATE: Field modifier. The field will be "inverted" starting from the highest row that has anything in it.
+;   - FIELD_PUSH_LEFT: Field modifier. The field will be compacted to the left.
+;   - FIELD_PUSH_RIGHT: Field modifier. The field will be compacted to the left.
+;   - FIELD_PUSH_DOWN: Field modifier. The field will be compacted downward, which might clear lines.
+;   - FIELD_DEL_UPPER: Field modifier. The upper 10 rows of the field will be cleared.
+;   - FIELD_DEL_LOWER: Field modifier. The lower 10 rows of the field will be cleared.
+;   - FIELD_DEL_EVEN: Field modifier. Starting from the second row from the bottom, every even row will be cleared.
