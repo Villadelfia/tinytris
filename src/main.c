@@ -93,6 +93,7 @@ int items = 27;
 int item_bag[27] = {0};
 char effect_overlay[30] = {0};
 int effect_overlay_ctr = 0;
+bool paused = false;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -126,6 +127,7 @@ int32_t button_b_held = 0;
 int32_t button_c_held = 0;
 int32_t button_hold_held = 0;
 int32_t button_start_held = 0;
+int32_t button_pause_held = 0;
 int32_t button_reset_held = 0;
 int32_t button_scale_up_held = 0;
 int32_t button_scale_down_held = 0;
@@ -226,30 +228,33 @@ void update_input_state(const bool *state, const int32_t scan_code, const SDL_Ga
     }
 }
 
-void update_input_states() {
+void update_input_states(bool p) {
     const bool* state = SDL_GetKeyboardState(NULL);
-    update_input_state(state, BUTTON_LEFT, GAMEPAD_LEFT, &button_l_held);
-    update_input_state(state, BUTTON_RIGHT, GAMEPAD_RIGHT, &button_r_held);
+    if (!p) {
+        update_input_state(state, BUTTON_LEFT, GAMEPAD_LEFT, &button_l_held);
+        update_input_state(state, BUTTON_RIGHT, GAMEPAD_RIGHT, &button_r_held);
 
-    update_input_state(state, BUTTON_SONIC_DROP, GAMEPAD_SONIC_DROP, &button_u_held);
-    update_input_state(state, BUTTON_SOFT_DROP, GAMEPAD_SOFT_DROP, &button_d_held);
-    update_input_state(state, BUTTON_HARD_DROP, GAMEPAD_HARD_DROP, &button_hard_drop_held);
+        update_input_state(state, BUTTON_SONIC_DROP, GAMEPAD_SONIC_DROP, &button_u_held);
+        update_input_state(state, BUTTON_SOFT_DROP, GAMEPAD_SOFT_DROP, &button_d_held);
+        update_input_state(state, BUTTON_HARD_DROP, GAMEPAD_HARD_DROP, &button_hard_drop_held);
 
-    update_input_state(state, BUTTON_CCW_1, GAMEPAD_CCW_1, &button_a_held);
-    update_input_state(state, BUTTON_CCW_2, GAMEPAD_CCW_2, &button_c_held);
-    update_input_state(state, BUTTON_CW, GAMEPAD_CW, &button_b_held);
-    update_input_state(state, BUTTON_HOLD, GAMEPAD_HOLD, &button_hold_held);
+        update_input_state(state, BUTTON_CCW_1, GAMEPAD_CCW_1, &button_a_held);
+        update_input_state(state, BUTTON_CCW_2, GAMEPAD_CCW_2, &button_c_held);
+        update_input_state(state, BUTTON_CW, GAMEPAD_CW, &button_b_held);
+        update_input_state(state, BUTTON_HOLD, GAMEPAD_HOLD, &button_hold_held);
 
-    update_input_state(state, BUTTON_RESET, GAMEPAD_RESET, &button_reset_held);
-    update_input_state(state, BUTTON_START, GAMEPAD_START, &button_start_held);
+        update_input_state(state, BUTTON_RESET, GAMEPAD_RESET, &button_reset_held);
+        update_input_state(state, BUTTON_START, GAMEPAD_START, &button_start_held);
 
-    update_input_state(state, BUTTON_SCALE_UP, GAMEPAD_SCALE_UP, &button_scale_up_held);
-    update_input_state(state, BUTTON_SCALE_DOWN, GAMEPAD_SCALE_DOWN, &button_scale_down_held);
-    update_input_state(state, BUTTON_TOGGLE_TRANSPARENCY, GAMEPAD_TOGGLE_TRANSPARENCY, &button_toggle_transparency_held);
-    update_input_state(state, BUTTON_MUTE, GAMEPAD_MUTE, &button_mute_held);
-    update_input_state(state, BUTTON_DETAILS, GAMEPAD_DETAILS, &button_details_held);
+        update_input_state(state, BUTTON_SCALE_UP, GAMEPAD_SCALE_UP, &button_scale_up_held);
+        update_input_state(state, BUTTON_SCALE_DOWN, GAMEPAD_SCALE_DOWN, &button_scale_down_held);
+        update_input_state(state, BUTTON_TOGGLE_TRANSPARENCY, GAMEPAD_TOGGLE_TRANSPARENCY, &button_toggle_transparency_held);
+        update_input_state(state, BUTTON_MUTE, GAMEPAD_MUTE, &button_mute_held);
+        update_input_state(state, BUTTON_DETAILS, GAMEPAD_DETAILS, &button_details_held);
 
-    update_input_state(state, BUTTON_MYSTERY, GAMEPAD_MYSTERY, &button_mystery_held);
+        update_input_state(state, BUTTON_MYSTERY, GAMEPAD_MYSTERY, &button_mystery_held);
+    }
+    update_input_state(state, BUTTON_PAUSE, GAMEPAD_PAUSE, &button_pause_held);
 }
 
 void play_sound(const sound_t *sound) {
@@ -2103,7 +2108,7 @@ void render_game() {
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
         SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
 
-        y_offset = 12.5f;
+        y_offset = 12.0f;
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
 
         y_offset += 1.0f;
@@ -2211,9 +2216,6 @@ void update_details() {
 }
 
 bool state_machine_tick() {
-    // Get input.
-    update_input_states();
-
     // Quit?
     if (IS_JUST_HELD(button_reset_held) && game_state == STATE_WAIT) return false;
 
@@ -2563,7 +2565,13 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 }
 
 SDL_AppResult SDL_AppIterate(void *appstate) {
-    if (SDL_GetKeyboardFocus() == window) {
+    // Get input.
+    update_input_states(paused);
+
+    // Pause?
+    if (IS_JUST_HELD(button_pause_held)) paused = !paused;
+
+    if (SDL_GetKeyboardFocus() == window && !paused) {
         if (!state_machine_tick()) return SDL_APP_SUCCESS;
     } else if (game_state != STATE_PAUSED && game_state != STATE_WAIT && game_state != STATE_GAMEOVER) {
         game_state_old = game_state;

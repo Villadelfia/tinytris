@@ -25,6 +25,7 @@ int32_t BUTTON_MUTE = SDL_SCANCODE_P;
 int32_t BUTTON_MYSTERY = SDL_SCANCODE_KP_MINUS;
 int32_t BUTTON_DETAILS = SDL_SCANCODE_F1;
 int32_t BUTTON_TOGGLE_TRANSPARENCY = SDL_SCANCODE_F2;
+int32_t BUTTON_PAUSE = SDL_SCANCODE_F3;
 
 int32_t GAMEPAD_LEFT = SDL_GAMEPAD_BUTTON_DPAD_LEFT;
 int32_t GAMEPAD_RIGHT = SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
@@ -43,6 +44,7 @@ int32_t GAMEPAD_MUTE = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_MYSTERY = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_DETAILS = SDL_GAMEPAD_BUTTON_INVALID;
 int32_t GAMEPAD_TOGGLE_TRANSPARENCY = SDL_GAMEPAD_BUTTON_INVALID;
+int32_t GAMEPAD_PAUSE = SDL_GAMEPAD_BUTTON_INVALID;
 
 typedef struct {
     int32_t *button;
@@ -50,8 +52,8 @@ typedef struct {
     char *description;
 } control_t;
 
-size_t controls_list_len = 12;
-control_t controls_list[12] = {
+size_t controls_list_len = 13;
+control_t controls_list[13] = {
     {&BUTTON_LEFT, &GAMEPAD_LEFT, "Left/right"},
     {&BUTTON_SONIC_DROP, &GAMEPAD_SONIC_DROP, "Sonic drop/up"},
     {&BUTTON_SOFT_DROP, &GAMEPAD_SOFT_DROP, "Soft drop/down"},
@@ -60,6 +62,7 @@ control_t controls_list[12] = {
     {&BUTTON_CW, &GAMEPAD_CW, "Rotate CW"},
     {&BUTTON_HOLD, &GAMEPAD_HOLD, "Hold"},
     {&BUTTON_RESET, &GAMEPAD_RESET, "Reset/quit game"},
+    {&BUTTON_PAUSE, &GAMEPAD_PAUSE, "Pause game"},
     {&BUTTON_SCALE_DOWN, &GAMEPAD_SCALE_DOWN, "Rescale game"},
     {&BUTTON_MUTE, &GAMEPAD_MUTE, "Toggle audio"},
     {&BUTTON_DETAILS, &GAMEPAD_DETAILS, "Toggle details"},
@@ -460,6 +463,7 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "hold") == 0) BUTTON_HOLD = s;
         if (SDL_strcasecmp(name, "reset") == 0) BUTTON_RESET = s;
         if (SDL_strcasecmp(name, "start") == 0) BUTTON_START = s;
+        if (SDL_strcasecmp(name, "pause") == 0) BUTTON_PAUSE = s;
         if (SDL_strcasecmp(name, "quit") == 0) BUTTON_RESET = s;
         if (SDL_strcasecmp(name, "scale_up") == 0) BUTTON_SCALE_UP = s;
         if (SDL_strcasecmp(name, "scale_down") == 0) BUTTON_SCALE_DOWN = s;
@@ -482,6 +486,7 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "hold") == 0) GAMEPAD_HOLD = s;
         if (SDL_strcasecmp(name, "reset") == 0) GAMEPAD_RESET = s;
         if (SDL_strcasecmp(name, "start") == 0) GAMEPAD_START = s;
+        if (SDL_strcasecmp(name, "pause") == 0) GAMEPAD_PAUSE = s;
         if (SDL_strcasecmp(name, "quit") == 0) GAMEPAD_RESET = s;
         if (SDL_strcasecmp(name, "scale_up") == 0) GAMEPAD_SCALE_UP = s;
         if (SDL_strcasecmp(name, "scale_down") == 0) GAMEPAD_SCALE_DOWN = s;
