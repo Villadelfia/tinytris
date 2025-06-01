@@ -18,6 +18,8 @@ if(NOT HAVE_MATH)
     target_link_libraries(tinytris PRIVATE m)
 endif()
 
+option(TINYTRIS_VENDORED "Use vendored libraries" OFF)
+
 if(TINYTRIS_VENDORED)
     add_subdirectory(vendored/SDL)
     add_subdirectory(vendored/SDL_image)
