@@ -2,7 +2,7 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_stdinc.h>
-#include <ini.h>
+#include "ini.h"
 #include "stb_vorbis.h"
 #include "game_types.h"
 #include "game_data.h"

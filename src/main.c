@@ -4,7 +4,7 @@
 #include <SDL3_image/SDL_image.h>
 #include <SDL3/SDL_timer.h>
 #include <stdint.h>
-#include <ini.h>
+#include "ini.h"
 #include "rng.h"
 #include "game_data.h"
 #include "game_config.h"
