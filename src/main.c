@@ -86,6 +86,8 @@ bool big_piece = false;
 bool selective_gravity = false;
 int old_w = 0;
 int old_h = 0;
+bool disable_selective_gravity_after_clear = false;
+bool item_mode = false;
 
 
 sound_t lineclear_sound;
@@ -141,6 +143,8 @@ void do_del_even();
 void do_push_left();
 void do_push_right();
 void do_push_down();
+void do_180();
+void do_random_effect();
 
 static int SDLCALL compare_int(const void *a, const void *b) {
     const int A = *(const int *)a;
@@ -264,6 +268,11 @@ void check_garbage() {
 }
 
 void add_garbage() {
+    if (item_mode) {
+        do_random_effect();
+        check_garbage();
+        return;
+    }
     bool all_empty =
         (field[0][23].type == BLOCK_VOID) &&
         (field[1][23].type == BLOCK_VOID) &&
@@ -349,6 +358,30 @@ int32_t time_spent(int32_t from, int32_t to) {
     return sum;
 }
 
+void do_random_effect() {
+    int selection = (int)xoroshiro_next() % 16;
+    while (selection > 11) selection = (int)xoroshiro_next() % 16;
+
+    if (selection == 0) do_shotgun();
+    if (selection == 1) do_laser();
+    if (selection == 2) do_negate();
+    if (selection == 3) do_del_upper();
+    if (selection == 4) do_del_lower();
+    if (selection == 5) do_del_even();
+    if (selection == 6) do_push_left();
+    if (selection == 7) do_push_right();
+    if (selection == 8) do_push_down();
+    if (selection == 9) do_180();
+    if (selection == 10) {
+        big_piece = true;
+        if (current_piece.type != BLOCK_VOID) current_piece.x = 2;
+    }
+    if (selection == 11) {
+        selective_gravity = true;
+        disable_selective_gravity_after_clear = true;
+    }
+}
+
 void check_effect() {
     int32_t effect = current_timing->effect;
     const int32_t torikan = current_timing->torikan;
@@ -369,7 +402,9 @@ void check_effect() {
     bool should_do_push_left = (effect & FIELD_PUSH_LEFT_MASK) != 0;
     bool should_do_push_right = (effect & FIELD_PUSH_RIGHT_MASK) != 0;
     bool should_do_push_down = (effect & FIELD_PUSH_DOWN_MASK) != 0;
+    bool should_do_180 = (effect & FIELD_180_MASK) != 0;
     selective_gravity = (effect & SELECTIVE_GRAVITY_MASK) != 0;
+    if (selective_gravity) disable_selective_gravity_after_clear = false;
     int prev_frozen = frozen_rows;
     frozen_rows = current_timing->freeze;
     if (frozen_rows < 0) frozen_rows = 0;
@@ -382,6 +417,10 @@ void check_effect() {
     big_mode = ((effect & BIG_MODE_MASK) != 0 || get_setting_value(BIG_MODE_SETTING_IDX));
     big_piece = (effect & BIG_PIECE_MASK) != 0;
     big_mode_half_columns = (effect & BIG_MODE_HALF_PIECE_MASK) != 0;
+    item_mode = (effect & ITEM_MODE_MASK) != 0;
+
+    if ((effect & RANDOM_ITEM_MASK) != 0) do_random_effect();
+
     if (big_piece && current_piece.type != BLOCK_VOID) current_piece.x = 2;
     if (torikan != 0) {
         bool hit_torikan = game_details.total_frames > torikan;
@@ -391,7 +430,7 @@ void check_effect() {
                 // Gameover
                 current_piece.type = BLOCK_VOID;
                 game_state = STATE_GAMEOVER;
-                game_state_ctr = 10 * 21 + 1;
+                game_state_ctr = 10 * 24 + 1;
                 play_sound(&gameover_sound);
                 return;
             } else {
@@ -438,6 +477,7 @@ void check_effect() {
     if (should_do_push_left) do_push_left();
     if (should_do_push_right) do_push_right();
     if (should_do_push_down) do_push_down();
+    if (should_do_180) do_180();
 
     if (invisibility_hint_once) {
         show_edge_timer = 60;
@@ -959,6 +999,7 @@ void wipe_clears() {
 
 void collapse_clears() {
     if (selective_gravity) {
+        if (lines_cleared != 0 && disable_selective_gravity_after_clear) selective_gravity = false;
         lines_cleared = 0;
         return;
     }
@@ -1110,6 +1151,25 @@ void do_push_down() {
         }
     }
     check_clears();
+}
+
+void do_180() {
+    int first_occupied = get_first_occupied_row();
+    if (first_occupied == -1) return;
+
+    block_t field_copy[10][24] = {0};
+
+    int dest_y = 23;
+    for (int y = first_occupied; y < 24; ++y) {
+        int dest_x = 9;
+        for (int x = 0; x < 10; ++x) {
+            field_copy[dest_x][dest_y] = field[x][y];
+            dest_x--;
+        }
+        dest_y--;
+    }
+
+    SDL_memcpy(field, field_copy, sizeof field);
 }
 
 int get_gravity() {
@@ -2018,6 +2078,8 @@ void do_reset() {
     big_piece = false;
     big_mode_half_columns = false;
     selective_gravity = false;
+    disable_selective_gravity_after_clear = false;
+    item_mode = false;
 }
 
 void update_details() {
@@ -2030,7 +2092,7 @@ void update_details() {
         in_roll_remaining--;
         if (in_roll_remaining == 0) {
             game_state = STATE_GAMEOVER;
-            game_state_ctr = 10 * 21 + 1;
+            game_state_ctr = 10 * 24 + 1;
             play_sound(&complete_sound);
         }
         game_details.current_section = game_details.highest_regular_section + 1;
@@ -2133,7 +2195,7 @@ bool state_machine_tick() {
                 write_piece(current_piece);
                 current_piece.type = BLOCK_VOID;
                 game_state = STATE_GAMEOVER;
-                game_state_ctr = 10 * 21 + 1;
+                game_state_ctr = 10 * 24 + 1;
                 play_sound(&gameover_sound);
             } else {
                 game_state = STATE_ACTIVE;

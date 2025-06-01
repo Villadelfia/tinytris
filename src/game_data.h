@@ -261,8 +261,8 @@ char* tgm2_plus_sequence[] = {
     "XXX   XXXX"
 };
 
-size_t effects_list_len = 24;
-effect_def_t effects_list[24] = {
+size_t effects_list_len = 27;
+effect_def_t effects_list[27] = {
     {"TORIKAN_SCOPE_SECTION", TORIKAN_SCOPE_MASK},
     //{"TORIKAN_SCOPE_GAME", 0},
     {"TORIKAN_EFFECT_GAMEOVER", TORIKAN_EFFECT_MASK},
@@ -290,5 +290,8 @@ effect_def_t effects_list[24] = {
     {"FIELD_PUSH_DOWN", FIELD_PUSH_DOWN_MASK},
     {"FIELD_DEL_UPPER", FIELD_DEL_UPPER_MASK},
     {"FIELD_DEL_LOWER", FIELD_DEL_LOWER_MASK},
-    {"FIELD_DEL_EVEN", FIELD_DEL_EVEN_MASK}
+    {"FIELD_DEL_EVEN", FIELD_DEL_EVEN_MASK},
+    {"FIELD_180", FIELD_180_MASK},
+    {"RANDOM_ITEM", RANDOM_ITEM_MASK},
+    {"ITEM_MODE", ITEM_MODE_MASK}
 };

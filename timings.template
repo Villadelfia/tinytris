@@ -95,6 +95,11 @@ name = TAP-Master M
 ;   - FIELD_PUSH_LEFT: Field modifier. The field will be compacted to the left.
 ;   - FIELD_PUSH_RIGHT: Field modifier. The field will be compacted to the left.
 ;   - FIELD_PUSH_DOWN: Field modifier. The field will be compacted downward, which might clear lines.
-;   - FIELD_DEL_UPPER: Field modifier. The upper 10 rows of the field will be cleared.
-;   - FIELD_DEL_LOWER: Field modifier. The lower 10 rows of the field will be cleared.
+;   - FIELD_DEL_UPPER: Field modifier. The upper half of the stack will be cleared.
+;   - FIELD_DEL_LOWER: Field modifier. The lower half of the stack will be cleared.
 ;   - FIELD_DEL_EVEN: Field modifier. Starting from the second row from the bottom, every even row will be cleared.
+;   - FIELD_180: Field modifier. Flips the field 180°.
+;   - ITEM_MODE: Garbage modifier. When garbage would activate, it instead activates a random effect as RANDOM_ITEM.
+;   - RANDOM_ITEM: Randomly selects one of the following: BIG_PIECE, FIELD_SHOTGUN, FIELD_LASER, FIELD_NEGATE,
+;                  FIELD_PUSH_LEFT, FIELD_PUSH_RIGHT, FIELD_PUSH_DOWN, FIELD_DEL_UPPER, FIELD_DEL_LOWER, FIELD_DEL_EVEN
+;                  FIELD_180, SELECTIVE_GRAVITY (next line clear only).

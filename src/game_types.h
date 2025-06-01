@@ -134,3 +134,7 @@ typedef struct {
 #define FIELD_DEL_UPPER_MASK         (0x00200000)
 #define FIELD_DEL_LOWER_MASK         (0x00400000)
 #define FIELD_DEL_EVEN_MASK          (0x00800000)
+#define FIELD_180_MASK               (0x01000000)
+
+#define ITEM_MODE_MASK               (0x40000000)
+#define RANDOM_ITEM_MASK             (0x80000000)
