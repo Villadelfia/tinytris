@@ -83,12 +83,16 @@ bool ti_garbage_quota = false;
 bool big_mode = false;
 bool big_mode_half_columns = false;
 bool big_piece = false;
+bool next_big_piece = false;
 bool selective_gravity = false;
 int old_w = 0;
 int old_h = 0;
 bool disable_selective_gravity_after_clear = false;
 bool item_mode = false;
-
+int items = 27;
+int item_bag[27] = {0};
+char effect_overlay[30] = {0};
+int effect_overlay_ctr = 0;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -358,25 +362,61 @@ int32_t time_spent(int32_t from, int32_t to) {
     return sum;
 }
 
-void do_random_effect() {
-    int selection = (int)xoroshiro_next() % 16;
-    while (selection > 11) selection = (int)xoroshiro_next() % 16;
+void fill_item_bag() {
+    items = 27;
+    for (int i = 0; i < 27; ++i) {
+        if (i < 3) item_bag[i] = 0;
+        else if (i < 6) item_bag[i] = 1;
+        else if (i < 9) item_bag[i] = 2;
+        else if (i < 12) item_bag[i] = 9;
+        else if (i < 15) item_bag[i] = 10;
+        else if (i < 18) item_bag[i] = 11;
+        else if (i < 20) item_bag[i] = 3;
+        else if (i < 22) item_bag[i] = 4;
+        else if (i < 24) item_bag[i] = 5;
+        else if (i < 25) item_bag[i] = 6;
+        else if (i < 26) item_bag[i] = 7;
+        else item_bag[i] = 8;
+    }
+}
 
-    if (selection == 0) do_shotgun();
-    if (selection == 1) do_laser();
-    if (selection == 2) do_negate();
-    if (selection == 3) do_del_upper();
-    if (selection == 4) do_del_lower();
-    if (selection == 5) do_del_even();
-    if (selection == 6) do_push_left();
-    if (selection == 7) do_push_right();
-    if (selection == 8) do_push_down();
-    if (selection == 9) do_180();
-    if (selection == 10) {
+void do_random_effect() {
+    int divisor = 32;
+    if (items <= 16) divisor = 16;
+    if (items <= 8) divisor = 8;
+    if (items <= 4) divisor = 4;
+    if (items <= 2) divisor = 2;
+    int selection = (int)(uint8_t)xoroshiro_next() % divisor;
+    while (selection >= items) selection = (int)(uint8_t)xoroshiro_next() % divisor;
+    int result = item_bag[selection];
+    item_bag[selection] = INT32_MAX;
+    SDL_qsort(item_bag, 27, sizeof(int), compare_int);
+
+    items--;
+    if (items == 0) fill_item_bag();
+
+    if (result == 0) do_shotgun();
+    if (result == 1) do_laser();
+    if (result == 2) do_negate();
+    if (result == 3) do_del_upper();
+    if (result == 4) do_del_lower();
+    if (result == 5) do_del_even();
+    if (result == 6) do_push_left();
+    if (result == 7) do_push_right();
+    if (result == 8) do_push_down();
+    if (result == 9) do_180();
+    if (result == 10) {
+        SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+        SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Big Block!");
+        effect_overlay_ctr = 120;
         big_piece = true;
+        next_big_piece = game_state == STATE_LOCKFLASH;
         if (current_piece.type != BLOCK_VOID) current_piece.x = 2;
     }
-    if (selection == 11) {
+    if (result == 11) {
+        SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+        SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Antigravity!");
+        effect_overlay_ctr = 120;
         selective_gravity = true;
         disable_selective_gravity_after_clear = true;
     }
@@ -404,7 +444,12 @@ void check_effect() {
     bool should_do_push_down = (effect & FIELD_PUSH_DOWN_MASK) != 0;
     bool should_do_180 = (effect & FIELD_180_MASK) != 0;
     selective_gravity = (effect & SELECTIVE_GRAVITY_MASK) != 0;
-    if (selective_gravity) disable_selective_gravity_after_clear = false;
+    if (selective_gravity) {
+        disable_selective_gravity_after_clear = false;
+        SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+        SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Antigravity!");
+        effect_overlay_ctr = 120;
+    }
     int prev_frozen = frozen_rows;
     frozen_rows = current_timing->freeze;
     if (frozen_rows < 0) frozen_rows = 0;
@@ -416,6 +461,13 @@ void check_effect() {
     ti_garbage_quota = (effect & TI_GARBAGE_QUOTA) != 0;
     big_mode = ((effect & BIG_MODE_MASK) != 0 || get_setting_value(BIG_MODE_SETTING_IDX));
     big_piece = (effect & BIG_PIECE_MASK) != 0;
+    next_big_piece = false;
+    if (big_piece) {
+        if (game_state == STATE_LOCKFLASH) next_big_piece = true;
+        SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+        SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Big Block!");
+        effect_overlay_ctr = 120;
+    }
     big_mode_half_columns = (effect & BIG_MODE_HALF_PIECE_MASK) != 0;
     item_mode = (effect & ITEM_MODE_MASK) != 0;
 
@@ -904,24 +956,47 @@ int get_first_occupied_row() {
 }
 
 void do_shotgun() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Shotgun!");
+    effect_overlay_ctr = 120;
+
+    int block_cnt = 0;
     for (int x = 0; x < 10; ++x) {
         for (int y = 0; y < 24; ++y) {
             if (field[x][y].type != BLOCK_VOID) {
-                if ((xoroshiro_next() % 32) == 0) field[x][y].type = BLOCK_VOID;
+                block_cnt++;
             }
+        }
+    }
+
+    block_cnt /= 6;
+    while (block_cnt > 0) {
+        int x = (int)(uint8_t)xoroshiro_next() % 16;
+        int y = (int)(uint8_t)xoroshiro_next() % 32;
+        while (x >= 10) x = (int)(uint8_t)xoroshiro_next() % 16;
+        while (y >= 24) y = (int)(uint8_t)xoroshiro_next() % 32;
+        if (field[x][y].type != BLOCK_VOID) {
+            field[x][y].type = BLOCK_VOID;
+            block_cnt--;
         }
     }
 }
 
 void do_laser() {
-    int column = (int)xoroshiro_next() % 16;
-    while (column > 9) column = (int)xoroshiro_next() % 16;
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Laser!");
+    effect_overlay_ctr = 120;
+    int column = (int)(uint8_t)xoroshiro_next() % 16;
+    while (column > 9) column = (int)(uint8_t)xoroshiro_next() % 16;
     for (int y = 0; y < 24; ++y) {
         field[column][y].type = BLOCK_VOID;
     }
 }
 
 void do_negate() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Negate Field");
+    effect_overlay_ctr = 120;
     int first_occupied = get_first_occupied_row();
 
     if (first_occupied == -1) return;
@@ -1041,6 +1116,9 @@ bool is_in_cleared_lines_list(int line) {
 }
 
 void do_del_lower() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Del Lower");
+    effect_overlay_ctr = 120;
     int first_occupied = get_first_occupied_row();
     if (first_occupied == -1) return;
     if (lines_cleared == 0) {
@@ -1064,6 +1142,9 @@ void do_del_lower() {
 }
 
 void do_del_upper() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Del Upper");
+    effect_overlay_ctr = 120;
     int first_occupied = get_first_occupied_row();
     if (first_occupied == -1) return;
     if (lines_cleared == 0) {
@@ -1087,6 +1168,9 @@ void do_del_upper() {
 }
 
 void do_del_even() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Del Even");
+    effect_overlay_ctr = 120;
     if (lines_cleared == 0) {
         for (int i = 0; i < 24; ++i) clears[i] = -1;
         for (int i = 0; i < 12; ++i) clears[i] = i*2;
@@ -1108,6 +1192,9 @@ void do_del_even() {
 }
 
 void do_push_left() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Push Left");
+    effect_overlay_ctr = 120;
     for (int y = 0; y < 24; ++y) {
         int left_most_taken = 0;
         for (int x = 0; x < 10; ++x) {
@@ -1123,6 +1210,9 @@ void do_push_left() {
 }
 
 void do_push_right() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Push Right");
+    effect_overlay_ctr = 120;
     for (int y = 0; y < 24; ++y) {
         int right_most_taken = 9;
         for (int x = 9; x >= 0; --x) {
@@ -1138,6 +1228,9 @@ void do_push_right() {
 }
 
 void do_push_down() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Push Down");
+    effect_overlay_ctr = 120;
     for (int x = 0; x < 10; ++x) {
         int bottom_most_taken = 23;
         for (int y = 23; y >= 0; --y) {
@@ -1154,6 +1247,9 @@ void do_push_down() {
 }
 
 void do_180() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Field 180");
+    effect_overlay_ctr = 120;
     int first_occupied = get_first_occupied_row();
     if (first_occupied == -1) return;
 
@@ -1977,6 +2073,16 @@ void render_game() {
         SDL_RenderFillRect(renderer, &dst);
     }
 
+    // Overlay?
+    if (effect_overlay_ctr > 0) {
+        effect_overlay_ctr--;
+
+        SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
+        size_t length = (SDL_strlen(effect_overlay) / 2) * 8;
+
+        SDL_RenderDebugText(renderer, FIELD_X_OFFSET + (5*16) - length, FIELD_Y_OFFSET+120.0f, effect_overlay);
+    }
+
     // Title screen.
     if (game_state == STATE_WAIT) {
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
@@ -2050,6 +2156,7 @@ void render_game() {
 }
 
 void do_reset() {
+    fill_item_bag();
     generate_first_piece();
     SDL_memset(time_spent_at_level, 0, sizeof time_spent_at_level);
     SDL_memset(field, 0, sizeof field);
@@ -2080,6 +2187,8 @@ void do_reset() {
     selective_gravity = false;
     disable_selective_gravity_after_clear = false;
     item_mode = false;
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    effect_overlay_ctr = 0;
 }
 
 void update_details() {
@@ -2289,11 +2398,13 @@ bool state_machine_tick() {
             wipe_clears();
             game_state_ctr = current_timing->clear;
             game_state = STATE_CLEAR;
-            big_piece = false;
+            big_piece = next_big_piece;
+            next_big_piece = false;
         } else {
             game_state = STATE_ARE;
             game_state_ctr = current_timing->are - 3;
-            big_piece = false;
+            big_piece = next_big_piece;
+            next_big_piece = false;
         }
     } else if (game_state == STATE_CLEAR) {
         update_details();
@@ -2304,6 +2415,7 @@ bool state_machine_tick() {
         game_state = STATE_ARE;
         game_state_ctr = current_timing->line_are - 3;
     } else if (game_state == STATE_GAMEOVER) {
+        effect_overlay_ctr = 0;
         in_roll = false;
         game_state_ctr--;
         if (game_state_ctr < 0) {
@@ -2376,6 +2488,7 @@ void load_sound(sound_t *target, const char* file, const void* fallback, const s
 }
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
+    fill_item_bag();
     load_config();
     for (int i = 0; i < SETTINGS_COUNT; ++i) locked_settings[i] = settings_values[i];
     calculate_mode_hash();
