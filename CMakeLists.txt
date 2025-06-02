@@ -4,6 +4,7 @@ set(CMAKE_C_STANDARD 23)
 add_executable(tinytris src/main.c src/stb_vorbis.c src/sha1.c src/ini.c)
 if(WIN32)
     set_property(TARGET tinytris PROPERTY WIN32_EXECUTABLE TRUE)
+    target_sources(tinytris PRIVATE assets/icon.rc)
 endif()
 
 include(CheckCSourceCompiles)
