@@ -21,8 +21,19 @@ jobs:
         uses: lukka/get-cmake@latest
       - name: Restore or setup vcpkg
         uses: lukka/run-vcpkg@v11.5
+        with:
+          vcpkgGitCommitId: e9d0d6fe71ec440a6a7906f92f941a181b937556
       - name: Run CMake consuming CMakePresets.json and vcpkg.json by mean of vcpkg.
         uses: lukka/run-cmake@v10
         with:
           configurePreset: 'windows-release'
           buildPreset: 'windows-release'
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: |
+            build/tinytris.exe
+            *.ini
+            *.template
+            *.md
