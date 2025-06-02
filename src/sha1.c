@@ -135,7 +135,7 @@ void _sha1_pad_block(uint8_t M[_SHA1_BLOCK_SIZE], uint32_t H[5], uint64_t length
 }
 
 bool sha1_digest(const uint8_t *data,
-                uint64_t length,
+                size_t length,
                 uint8_t result[SHA1_DIGEST_BYTE_LENGTH]) {
 
     if (length >= _SHA1_MAX_LENGTH) return false;
