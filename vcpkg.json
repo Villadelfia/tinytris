@@ -11,8 +11,5 @@
     "features": [
       "png"
     ]
-  }, {
-    "name" : "inih",
-    "version>=" : "59"
   } ]
 }

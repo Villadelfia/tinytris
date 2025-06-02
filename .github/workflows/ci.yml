@@ -48,3 +48,4 @@ jobs:
             build/*.md
             build/LICENSE-inih
             build/LICENSE-tinytris
+            build/LICENSE-sha1
