@@ -7,11 +7,20 @@ on:
     branches: [ "master" ]
   workflow_dispatch:
 
+env:
+  VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg_cache,readwrite
+
 jobs:
   windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Restore vcpkg cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-windows-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-windows-
       - name: Install latest CMake
         uses: lukka/get-cmake@latest
       - name: Restore or setup vcpkg
@@ -23,12 +32,19 @@ jobs:
         with:
           configurePreset: 'windows-release'
           buildPreset: 'windows-release'
+      - name: Save vcpkg cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-windows-${{ hashFiles('vcpkg.json') }}
       - name: Archive production artifacts
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: build
+          name: windows
           path: |
             build/tinytris.exe
-            *.ini
-            *.template
-            *.md
+            build/*.ini
+            build/*.template
+            build/*.md
+            build/LICENSE-inih
+            build/LICENSE-tinytris

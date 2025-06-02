@@ -31,3 +31,6 @@ endif()
 
 target_link_libraries(tinytris PRIVATE SDL3::SDL3)
 target_link_libraries(tinytris PRIVATE $<IF:$<TARGET_EXISTS:SDL3_image::SDL3_image-shared>,SDL3_image::SDL3_image-shared,SDL3_image::SDL3_image-static>)
+
+file(GLOB INCLUDE_IN_BUILD *.ini *.template *.md LICENSE-inih LICENSE-tinytris)
+file(COPY ${INCLUDE_IN_BUILD} DESTINATION ${PROJECT_BINARY_DIR})
