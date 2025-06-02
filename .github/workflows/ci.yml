@@ -1,0 +1,28 @@
+name: ci.yml
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+env:
+  VCPKG_FEATURE_FLAGS: dependencygraph
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-windows-static
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install latest CMake
+        uses: lukka/get-cmake@latest
+      - name: Restore or setup vcpkg
+        uses: lukka/run-vcpkg@v11.5
+      - name: Run CMake consuming CMakePresets.json and vcpkg.json by mean of vcpkg.
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: 'windows'
+          buildPreset: 'windows'
