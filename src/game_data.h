@@ -1,6 +1,7 @@
 #pragma once
 
 #include "assets/block.h"
+#include "assets/atlas.h"
 #include "assets/bone.h"
 #include "assets/border.h"
 #include "assets/next_hold.h"

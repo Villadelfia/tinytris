@@ -13,7 +13,21 @@ typedef enum {
     BLOCK_L,
     BLOCK_O,
     BLOCK_T,
-    BLOCK_BONE
+    BLOCK_BONE,
+    BLOCK_HARD,
+    ITEM_HARD,
+    ITEM_SHOTGUN,
+    ITEM_LASER,
+    ITEM_NEGATE,
+    ITEM_DEL_UPPER,
+    ITEM_DEL_LOWER,
+    ITEM_DEL_EVEN,
+    ITEM_PUSH_LEFT,
+    ITEM_PUSH_RIGHT,
+    ITEM_PUSH_DOWN,
+    ITEM_180,
+    ITEM_BIG_BLOCK,
+    ITEM_ANTIGRAVITY
 } block_type_t;
 
 typedef enum {
@@ -27,6 +41,7 @@ typedef enum {
 
 typedef struct {
     block_type_t type;
+    block_type_t subtype;
     lock_status_t lock_status;
     float lock_param;
     int locked_at;
