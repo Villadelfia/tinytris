@@ -63,7 +63,7 @@ jobs:
       - name: Install latest CMake
         uses: lukka/get-cmake@latest
       - name: Install stuff
-        run: sudo apt install -y ninja libltdl-dev
+        run: sudo apt install -y libltdl-dev
       - name: Restore or setup vcpkg
         uses: lukka/run-vcpkg@v11.5
         with:
