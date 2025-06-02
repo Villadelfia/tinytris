@@ -63,7 +63,7 @@ jobs:
       - name: Install latest CMake
         uses: lukka/get-cmake@latest
       - name: Install stuff
-        run: sudo apt install -y libltdl-dev
+        run: sudo apt install -y libltdl-dev libibus-1.0-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libx11-dev libxft-dev libxext-dev
       - name: Restore or setup vcpkg
         uses: lukka/run-vcpkg@v11.5
         with:
