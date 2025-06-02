@@ -22,6 +22,40 @@
           "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
         }
       }
+    },
+    {
+      "name": "linux-release",
+      "displayName": "linux-release",
+      "description": "linux-release",
+      "binaryDir": "${sourceDir}/build",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-static",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        }
+      }
+    },
+    {
+      "name": "macos-release",
+      "displayName": "macos-release",
+      "description": "macos-release",
+      "binaryDir": "${sourceDir}/build",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_TARGET_TRIPLET": "x64-osx-static",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        }
+      }
     }
   ],
   "buildPresets": [
@@ -30,6 +64,18 @@
       "configurePreset": "windows-release",
       "displayName": "windows-release",
       "description": "windows-release"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release",
+      "displayName": "linux-release",
+      "description": "linux-release"
+    },
+    {
+      "name": "macos-release",
+      "configurePreset": "macos-release",
+      "displayName": "macos-release",
+      "description": "macos-release"
     }
   ]
 }

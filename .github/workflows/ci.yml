@@ -49,3 +49,81 @@ jobs:
             build/LICENSE-inih
             build/LICENSE-tinytris
             build/LICENSE-sha1
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore vcpkg cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-linux-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-linux-
+      - name: Install latest CMake
+        uses: lukka/get-cmake@latest
+      - name: Restore or setup vcpkg
+        uses: lukka/run-vcpkg@v11.5
+        with:
+          vcpkgGitCommitId: e9d0d6fe71ec440a6a7906f92f941a181b937556
+      - name: Run CMake consuming CMakePresets.json and vcpkg.json by mean of vcpkg.
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: 'linux-release'
+          buildPreset: 'linux-release'
+      - name: Save vcpkg cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-linux-${{ hashFiles('vcpkg.json') }}
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: linux
+          path: |
+            build/tinytris
+            build/*.ini
+            build/*.template
+            build/*.md
+            build/LICENSE-inih
+            build/LICENSE-tinytris
+            build/LICENSE-sha1
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore vcpkg cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-macos-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-macos-
+      - name: Install latest CMake
+        uses: lukka/get-cmake@latest
+      - name: Restore or setup vcpkg
+        uses: lukka/run-vcpkg@v11.5
+        with:
+          vcpkgGitCommitId: e9d0d6fe71ec440a6a7906f92f941a181b937556
+      - name: Run CMake consuming CMakePresets.json and vcpkg.json by mean of vcpkg.
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: 'macos-release'
+          buildPreset: 'macos-release'
+      - name: Save vcpkg cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-macos-${{ hashFiles('vcpkg.json') }}
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: macos
+          path: |
+            build/tinytris
+            build/*.ini
+            build/*.template
+            build/*.md
+            build/LICENSE-inih
+            build/LICENSE-tinytris
+            build/LICENSE-sha1
