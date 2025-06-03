@@ -79,6 +79,7 @@ bool big_mode_half_columns = false;
 bool next_big_piece = false;
 block_type_t next_subtype = BLOCK_VOID;
 bool selective_gravity = false;
+bool selective_gravity_by_item = false;
 int old_w = 0;
 int old_h = 0;
 bool disable_selective_gravity_after_clear = false;
@@ -499,7 +500,6 @@ void check_effect() {
             disable_selective_gravity_after_clear = false;
         }
     }
-    if (disable_selective_gravity_after_clear) selective_gravity = true;
 
     int prev_frozen = frozen_rows;
     frozen_rows = current_timing->freeze;
@@ -1232,8 +1232,11 @@ void wipe_clears() {
 }
 
 void collapse_clears(bool sound) {
-    if (selective_gravity) {
-        if (lines_cleared != 0 && disable_selective_gravity_after_clear) selective_gravity = false;
+    if (selective_gravity || selective_gravity_by_item) {
+        if (lines_cleared != 0 && disable_selective_gravity_after_clear) {
+            selective_gravity = false;
+            selective_gravity_by_item = false;
+        }
         lines_cleared = 0;
         return;
     }
@@ -1452,7 +1455,7 @@ void do_antigravity() {
     SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
     SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Antigravity!");
     effect_overlay_ctr = 120;
-    selective_gravity = true;
+    selective_gravity_by_item = true;
     disable_selective_gravity_after_clear = true;
 }
 
