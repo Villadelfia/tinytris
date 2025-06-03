@@ -1139,6 +1139,8 @@ void check_clears() {
         }
     }
 
+    lines_cleared = ct;
+
     if (should_do_hard_block) do_hard_block();
     if (should_do_shotgun) do_shotgun();
     if (should_do_laser) do_laser();
@@ -1176,7 +1178,6 @@ void check_clears() {
     }
 
     frozen_ignore_next = false;
-    lines_cleared = ct;
     increment_level_line_clear(ct);
 }
 
@@ -1382,6 +1383,9 @@ void do_180() {
 
     block_t field_copy[10][24] = {0};
 
+    int new_clears[24];
+    SDL_memcpy(new_clears, clears, sizeof clears);
+
     int dest_y = 23;
     for (int y = first_occupied; y < 24; ++y) {
         int dest_x = 9;
@@ -1389,9 +1393,14 @@ void do_180() {
             field_copy[dest_x][dest_y] = field[x][y];
             dest_x--;
         }
+        for (int i = 0; i < 24; ++i) {
+            if (clears[i] == y) new_clears[i] = dest_y;
+        }
         dest_y--;
     }
 
+
+    SDL_memcpy(clears, new_clears, sizeof clears);
     SDL_memcpy(field, field_copy, sizeof field);
 }
 
