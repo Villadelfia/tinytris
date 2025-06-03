@@ -1097,14 +1097,56 @@ void do_shotgun() {
     }
 }
 
+
+typedef struct {
+    int cells;
+    int column;
+} laser_t;
+
+static int SDLCALL compare_laser(const void *a, const void *b) {
+    const laser_t *A = (const laser_t *)a;
+    const laser_t *B = (const laser_t *)b;
+
+    if (A->cells < B->cells) {
+        return -1;
+    } else if (B->cells < A->cells) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 void do_laser() {
     SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
     SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Laser!");
     effect_overlay_ctr = 120;
-    int column = (int)(uint8_t)xoroshiro_next() % 16;
-    while (column > 9) column = (int)(uint8_t)xoroshiro_next() % 16;
+    laser_t data[10] = {
+        {(uint16_t)xoroshiro_next(), 0},
+        {(uint16_t)xoroshiro_next(), 1},
+        {(uint16_t)xoroshiro_next(), 2},
+        {(uint16_t)xoroshiro_next(), 3},
+        {(uint16_t)xoroshiro_next(), 4},
+        {(uint16_t)xoroshiro_next(), 5},
+        {(uint16_t)xoroshiro_next(), 6},
+        {(uint16_t)xoroshiro_next(), 7},
+        {(uint16_t)xoroshiro_next(), 8},
+        {(uint16_t)xoroshiro_next(), 9},
+    };
+
+    SDL_qsort(data, 10, sizeof(laser_t), compare_laser);
+    for (int i = 0; i < 10; ++i) {
+        int ct = 0;
+        for (int y = 0; y < 24; ++y) {
+            if (field[data[i].column][y].type != BLOCK_VOID) ct++;
+        }
+        data[i].cells = ct;
+    }
+    SDL_qsort(data, 10, sizeof(laser_t), compare_laser);
+
+    int column = data[2].column;
     for (int y = 0; y < 24; ++y) {
         field[column][y].type = BLOCK_VOID;
+        field[column][y].subtype = BLOCK_VOID;
     }
 }
 
