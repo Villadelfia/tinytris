@@ -1,10 +1,6 @@
 #pragma once
 
-#include "assets/block.h"
 #include "assets/atlas.h"
-#include "assets/bone.h"
-#include "assets/border.h"
-#include "assets/next_hold.h"
 #include "assets/lineclear.h"
 #include "assets/linecollapse.h"
 #include "assets/pieceland.h"
@@ -262,8 +258,8 @@ char* tgm2_plus_sequence[] = {
     "XXX   XXXX"
 };
 
-size_t effects_list_len = 29;
-effect_def_t effects_list[29] = {
+size_t effects_list_len = 30;
+effect_def_t effects_list[30] = {
     {"TORIKAN_SCOPE_SECTION", TORIKAN_SCOPE_MASK},
     //{"TORIKAN_SCOPE_GAME", 0},
     {"TORIKAN_EFFECT_GAMEOVER", TORIKAN_EFFECT_MASK},
@@ -295,6 +291,7 @@ effect_def_t effects_list[29] = {
     {"FIELD_180", FIELD_180_MASK},
     {"HARD_BLOCK", HARD_BLOCK_MASK},
     {"ITEM_MODE", ITEM_MODE_MASK},
+    {"ROLL_BLOCK", ROLL_BLOCK_MASK},
     {"RANDOM_EFFECT", RANDOM_EFFECT_MASK},
     {"EFFECT_AS_ITEM", EFFECT_AS_ITEM_MASK}
 };
@@ -324,6 +321,7 @@ SDL_FRect texture_atlas[] = {
     {0,  224, 32, 32}, // ITEM_180
     {32, 224, 32, 32}, // ITEM_BIG_BLOCK
     {64, 224, 32, 32}, // ITEM_ANTIGRAVITY
+    {96, 224, 32, 32}, // ITEM_ROLL
     {0,  0,   25, 7},  // TEXTURE_NEXT
     {0,  7,   25, 7},  // TEXTURE_HOLD
     {96, 0,   96, 176} // TEXTURE_FIELD

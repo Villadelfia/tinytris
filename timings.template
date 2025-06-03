@@ -100,8 +100,9 @@ name = TAP-Master M
 ;   - FIELD_DEL_EVEN: Field modifier. Starting from the second row from the bottom, every even row will be cleared.
 ;   - FIELD_180: Field modifier. Flips the field 180°.
 ;   - HARD_BLOCK: Field modifier. The next piece will need to be cleared twice.
+;   - ROLL_BLOCK: Field modifier. The next piece will rotate on its own.
 ;   - ITEM_MODE: Garbage modifier. When garbage would activate, it instead activates a random effect as RANDOM_ITEM.
 ;   - RANDOM_EFFECT: Randomly selects one of the following: BIG_PIECE, FIELD_SHOTGUN, FIELD_LASER, FIELD_NEGATE,
 ;                    FIELD_PUSH_LEFT, FIELD_PUSH_RIGHT, FIELD_PUSH_DOWN, FIELD_DEL_UPPER, FIELD_DEL_LOWER,
-;                    FIELD_DEL_EVEN, FIELD_180, SELECTIVE_GRAVITY (next line clear only), HARD_BLOCK.
+;                    FIELD_DEL_EVEN, FIELD_180, SELECTIVE_GRAVITY (next line clear only), HARD_BLOCK, ROLL_BLOCK.
 ;    - EFFECT_AS_ITEM: Any of the selected effects will spawn as an item instead of happening directly.

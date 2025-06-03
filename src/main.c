@@ -83,8 +83,9 @@ int old_w = 0;
 int old_h = 0;
 bool disable_selective_gravity_after_clear = false;
 bool item_mode = false;
-int items = 27;
-int item_bag[27] = {0};
+Improve int items = 0;
+int item_bag[32] = {0};
+int item_hist[2] = {ITEM_NEGATE, ITEM_SHOTGUN};
 char effect_overlay[30] = {0};
 int effect_overlay_ctr = 0;
 bool paused = false;
@@ -150,6 +151,7 @@ void do_antigravity();
 void do_random_effect();
 void spawn_random_effect();
 void do_hard_block();
+void do_roll_block();
 
 static int SDLCALL compare_int(const void *a, const void *b) {
     const int A = *(const int *)a;
@@ -368,78 +370,102 @@ int32_t time_spent(int32_t from, int32_t to) {
 
 void fill_item_bag() {
     items = 27;
-    for (int i = 0; i < 27; ++i) {
-        if (i < 3) item_bag[i] = 0;
-        else if (i < 6) item_bag[i] = 1;
-        else if (i < 9) item_bag[i] = 2;
-        else if (i < 12) item_bag[i] = 9;
-        else if (i < 15) item_bag[i] = 10;
-        else if (i < 18) item_bag[i] = 11;
-        else if (i < 20) item_bag[i] = 3;
-        else if (i < 22) item_bag[i] = 4;
-        else if (i < 24) item_bag[i] = 5;
-        else if (i < 25) item_bag[i] = 6;
-        else if (i < 26) item_bag[i] = 7;
-        else item_bag[i] = 8;
+
+    item_bag[0] = ITEM_SHOTGUN;
+
+    item_bag[1] = ITEM_ROLL;
+    item_bag[2] = ITEM_ROLL;
+    item_bag[3] = ITEM_ROLL;
+    item_bag[4] = ITEM_ROLL;
+    item_bag[5] = ITEM_ROLL;
+
+    item_bag[6] = ITEM_LASER;
+    item_bag[7] = ITEM_LASER;
+    item_bag[8] = ITEM_LASER;
+    item_bag[9] = ITEM_LASER;
+    item_bag[10] = ITEM_LASER;
+
+    item_bag[11] = ITEM_180;
+
+    item_bag[12] = ITEM_NEGATE;
+
+    item_bag[13] = ITEM_ANTIGRAVITY;
+    item_bag[14] = ITEM_ANTIGRAVITY;
+    item_bag[15] = ITEM_ANTIGRAVITY;
+    item_bag[16] = ITEM_ANTIGRAVITY;
+
+    item_bag[17] = ITEM_BIG_BLOCK;
+    item_bag[18] = ITEM_BIG_BLOCK;
+
+    item_bag[19] = ITEM_HARD;
+    item_bag[20] = ITEM_HARD;
+    item_bag[21] = ITEM_HARD;
+
+    item_bag[22] = ITEM_PUSH_LEFT;
+    item_bag[23] = ITEM_PUSH_LEFT;
+    item_bag[24] = ITEM_PUSH_LEFT;
+
+    item_bag[25] = ITEM_PUSH_RIGHT;
+    item_bag[26] = ITEM_PUSH_RIGHT;
+    item_bag[27] = ITEM_PUSH_RIGHT;
+
+    item_bag[28] = ITEM_PUSH_DOWN;
+
+    item_bag[29] = ITEM_DEL_UPPER;
+
+    item_bag[30] = ITEM_DEL_LOWER;
+
+    item_bag[31] = ITEM_DEL_EVEN;
+}
+
+int generate_random_effect() {
+    int divisor = 32;
+    if (items <= 16) divisor = 16;
+    if (items <= 8) divisor = 8;
+    if (items <= 4) divisor = 4;
+    if (items <= 2) divisor = 2;
+    int selection = (int)(uint8_t)xoroshiro_next() % divisor;
+    while (selection >= items) selection = (int)(uint8_t)xoroshiro_next() % divisor;
+    int result = item_bag[selection];
+    int tries = 0;
+    while ((item_hist[0] == result || item_hist[1] == result) && tries < 3) {
+        selection = (int)(uint8_t)xoroshiro_next() % divisor;
+        while (selection >= items) selection = (int)(uint8_t)xoroshiro_next() % divisor;
+        result = item_bag[selection];
+        tries++;
     }
+    item_hist[0] = item_hist[1];
+    item_hist[1] = result;
+    item_bag[selection] = INT32_MAX;
+    SDL_qsort(item_bag, 27, sizeof(int), compare_int);
+
+    items--;
+    if (items == 0) fill_item_bag();
+
+    return result;
 }
 
 void spawn_random_effect() {
-    int divisor = 32;
-    if (items <= 16) divisor = 16;
-    if (items <= 8) divisor = 8;
-    if (items <= 4) divisor = 4;
-    if (items <= 2) divisor = 2;
-    int selection = (int)(uint8_t)xoroshiro_next() % divisor;
-    while (selection >= items) selection = (int)(uint8_t)xoroshiro_next() % divisor;
-    int result = item_bag[selection];
-    item_bag[selection] = INT32_MAX;
-    SDL_qsort(item_bag, 27, sizeof(int), compare_int);
-
-    items--;
-    if (items == 0) fill_item_bag();
-
-    if (result == 0) next_subtype = ITEM_SHOTGUN;
-    if (result == 1) next_subtype = ITEM_LASER;
-    if (result == 2) next_subtype = ITEM_NEGATE;
-    if (result == 3) next_subtype = ITEM_DEL_UPPER;
-    if (result == 4) next_subtype = ITEM_DEL_LOWER;
-    if (result == 5) next_subtype = ITEM_DEL_EVEN;
-    if (result == 6) next_subtype = ITEM_PUSH_LEFT;
-    if (result == 7) next_subtype = ITEM_PUSH_RIGHT;
-    if (result == 8) next_subtype = ITEM_PUSH_DOWN;
-    if (result == 9) next_subtype = ITEM_180;
-    if (result == 10) next_subtype = ITEM_BIG_BLOCK;
-    if (result == 11) next_subtype = ITEM_ANTIGRAVITY;
+    next_subtype = generate_random_effect();
 }
 
 void do_random_effect() {
-    int divisor = 32;
-    if (items <= 16) divisor = 16;
-    if (items <= 8) divisor = 8;
-    if (items <= 4) divisor = 4;
-    if (items <= 2) divisor = 2;
-    int selection = (int)(uint8_t)xoroshiro_next() % divisor;
-    while (selection >= items) selection = (int)(uint8_t)xoroshiro_next() % divisor;
-    int result = item_bag[selection];
-    item_bag[selection] = INT32_MAX;
-    SDL_qsort(item_bag, 27, sizeof(int), compare_int);
+    int result = generate_random_effect();
 
-    items--;
-    if (items == 0) fill_item_bag();
-
-    if (result == 0) do_shotgun();
-    if (result == 1) do_laser();
-    if (result == 2) do_negate();
-    if (result == 3) do_del_upper();
-    if (result == 4) do_del_lower();
-    if (result == 5) do_del_even();
-    if (result == 6) do_push_left();
-    if (result == 7) do_push_right();
-    if (result == 8) do_push_down();
-    if (result == 9) do_180();
-    if (result == 10) do_big_block();
-    if (result == 11) do_antigravity();
+    if (result == ITEM_SHOTGUN) do_shotgun();
+    if (result == ITEM_LASER) do_laser();
+    if (result == ITEM_NEGATE) do_negate();
+    if (result == ITEM_DEL_UPPER) do_del_upper();
+    if (result == ITEM_DEL_LOWER) do_del_lower();
+    if (result == ITEM_DEL_EVEN) do_del_even();
+    if (result == ITEM_PUSH_LEFT) do_push_left();
+    if (result == ITEM_PUSH_RIGHT) do_push_right();
+    if (result == ITEM_PUSH_DOWN) do_push_down();
+    if (result == ITEM_180) do_180();
+    if (result == ITEM_BIG_BLOCK) do_big_block();
+    if (result == ITEM_HARD) do_hard_block();
+    if (result == ITEM_ROLL) do_roll_block();
+    if (result == ITEM_ANTIGRAVITY) do_antigravity();
 }
 
 void check_effect() {
@@ -473,6 +499,7 @@ void check_effect() {
             disable_selective_gravity_after_clear = false;
         }
     }
+    if (disable_selective_gravity_after_clear) selective_gravity = true;
 
     int prev_frozen = frozen_rows;
     frozen_rows = current_timing->freeze;
@@ -491,6 +518,10 @@ void check_effect() {
     if ((effect & HARD_BLOCK_MASK) != 0) {
         if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_HARD;
         else do_hard_block();
+    }
+    if ((effect & ROLL_BLOCK_MASK) != 0) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_ROLL;
+        else do_roll_block();
     }
     big_mode_half_columns = (effect & BIG_MODE_HALF_PIECE_MASK) != 0;
     item_mode = (effect & ITEM_MODE_MASK) != 0;
@@ -1100,6 +1131,7 @@ void check_clears() {
     bool should_do_180 = false;
     bool should_do_big_block = false;
     bool should_do_antigravity = false;
+    bool should_do_roll_block = false;
 
     int ct = 0;
     for (int i = 0; i < (24 - (frozen_ignore_next ? 0 : frozen_rows)); i++) {
@@ -1131,6 +1163,7 @@ void check_clears() {
                     if (subtype == ITEM_180) should_do_180 = true;
                     if (subtype == ITEM_BIG_BLOCK) should_do_big_block = true;
                     if (subtype == ITEM_ANTIGRAVITY) should_do_antigravity = true;
+                    if (subtype == ITEM_ROLL) should_do_roll_block = true;
 
                     wipe_subtype_by_id(field[x][i].id);
                 }
@@ -1142,6 +1175,7 @@ void check_clears() {
     lines_cleared = ct;
 
     if (should_do_hard_block) do_hard_block();
+    if (should_do_roll_block) do_roll_block();
     if (should_do_shotgun) do_shotgun();
     if (should_do_laser) do_laser();
     if (should_do_negate) do_negate();
@@ -1330,6 +1364,7 @@ void do_push_left() {
                 if (x != left_most_taken) {
                     field[left_most_taken][y] = field[x][y];
                     field[x][y].type = BLOCK_VOID;
+                    field[x][y].subtype = BLOCK_VOID;
                 }
                 left_most_taken++;
             }
@@ -1348,6 +1383,7 @@ void do_push_right() {
                 if (x != right_most_taken) {
                     field[right_most_taken][y] = field[x][y];
                     field[x][y].type = BLOCK_VOID;
+                    field[x][y].subtype = BLOCK_VOID;
                 }
                 right_most_taken--;
             }
@@ -1366,6 +1402,7 @@ void do_push_down() {
                 if (y != bottom_most_taken) {
                     field[x][bottom_most_taken] = field[x][y];
                     field[x][y].type = BLOCK_VOID;
+                    field[x][y].subtype = BLOCK_VOID;
                 }
                 bottom_most_taken--;
             }
@@ -1424,6 +1461,13 @@ void do_hard_block() {
     SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Hard Block!");
     effect_overlay_ctr = 120;
     next_piece[0].subtype = BLOCK_HARD;
+}
+
+void do_roll_block() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Rolling Block!");
+    effect_overlay_ctr = 120;
+    next_piece[0].is_rolling = true;
 }
 
 int get_gravity() {
@@ -1510,6 +1554,7 @@ live_block_t generate_valid_piece() {
     ret.type = result;
     ret.is_bone = bones;
     ret.is_big = big_mode || next_big_piece;
+    ret.is_rolling = false;
     ret.subtype = next_subtype;
     next_subtype = BLOCK_VOID;
     next_big_piece = false;
@@ -1526,6 +1571,7 @@ void do_hold(bool ihs) {
         held_piece.subtype = current_piece.subtype;
         held_piece.is_bone = current_piece.is_bone;
         held_piece.is_big = current_piece.is_big;
+        held_piece.is_rolling = current_piece.is_rolling;
         current_piece = (live_block_t){0};
         current_piece = next_piece[0];
         next_piece[0] = next_piece[1];
@@ -1561,12 +1607,13 @@ void do_hold(bool ihs) {
     if (ihs) return;
 
     // Apply IRS.
-    if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 1;
-    if ((IS_RELEASED(button_a_held)&& IS_RELEASED(button_c_held)) && IS_HELD(button_b_held)) current_piece.rotation_state = 3;
-    if ((IS_HELD(button_a_held) && IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 2;
+    if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = current_piece.is_rolling ? 2 : 1;
+    else if ((IS_RELEASED(button_a_held)&& IS_RELEASED(button_c_held)) && IS_HELD(button_b_held)) current_piece.rotation_state = current_piece.is_rolling ? 0 : 3;
+    else if ((IS_HELD(button_a_held) && IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = current_piece.is_rolling ? 3 : 2;
+    else if (current_piece.is_rolling) current_piece.rotation_state = 1;
     if (current_piece.rotation_state != 0) {
         if (piece_collides(current_piece) != -1) current_piece.rotation_state = 0;
-        else play_sound(&irs_sound);
+        else if (!current_piece.is_rolling || current_piece.rotation_state != 1) play_sound(&irs_sound);
     }
 
     if (get_gravity() == 5120) {
@@ -1599,12 +1646,13 @@ void generate_next_piece() {
     if (IS_HELD(button_hold_held) && get_setting_value(HOLD_SETTING_IDX) == 1) do_hold(true);
 
     // Apply IRS.
-    if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 1;
-    if ((IS_RELEASED(button_a_held)&& IS_RELEASED(button_c_held)) && IS_HELD(button_b_held)) current_piece.rotation_state = 3;
-    if ((IS_HELD(button_a_held) && IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = 2;
+    if ((IS_HELD(button_a_held) || IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = current_piece.is_rolling ? 2 : 1;
+    else if ((IS_RELEASED(button_a_held)&& IS_RELEASED(button_c_held)) && IS_HELD(button_b_held)) current_piece.rotation_state = current_piece.is_rolling ? 0 : 3;
+    else if ((IS_HELD(button_a_held) && IS_HELD(button_c_held)) && IS_RELEASED(button_b_held)) current_piece.rotation_state = current_piece.is_rolling ? 3 : 2;
+    else if (current_piece.is_rolling) current_piece.rotation_state = 1;
     if (current_piece.rotation_state != 0) {
         if (piece_collides(current_piece) != -1) current_piece.rotation_state = 0;
-        else play_sound(&irs_sound);
+        else if (!current_piece.is_rolling || current_piece.rotation_state != 1) play_sound(&irs_sound);
     }
 
     // Play sound.
@@ -1656,10 +1704,12 @@ void generate_first_piece() {
 
     next_piece[0].type = result;
     next_piece[0].subtype = next_subtype;
-    next_subtype = BLOCK_VOID;
     next_piece[0].is_bone = bones;
     next_piece[0].is_big = big_mode || next_big_piece;
+    next_piece[0].is_rolling = false;
+
     next_big_piece = false;
+    next_subtype = BLOCK_VOID;
 
     next_piece[1] = generate_valid_piece();
     next_piece[2] = generate_valid_piece();
@@ -2291,6 +2341,8 @@ void render_game() {
 }
 
 void do_reset() {
+    item_hist[0] = ITEM_NEGATE;
+    item_hist[1] = ITEM_SHOTGUN;
     fill_item_bag();
     generate_first_piece();
     SDL_memset(time_spent_at_level, 0, sizeof time_spent_at_level);
@@ -2444,7 +2496,7 @@ bool state_machine_tick() {
                 play_sound(&gameover_sound);
             } else {
                 game_state = STATE_ACTIVE;
-                game_state_ctr = -1;
+                game_state_ctr = 0;
             }
         }
     } else if (game_state == STATE_ACTIVE) {
@@ -2463,6 +2515,7 @@ bool state_machine_tick() {
         const bool prev_kicked = current_piece.floor_kicked;
         if ((IS_JUST_HELD(button_a_held) || IS_JUST_HELD(button_c_held)) && !IS_JUST_HELD(button_b_held)) try_rotate(1);
         if ((!IS_JUST_HELD(button_a_held) && !IS_JUST_HELD(button_c_held)) && IS_JUST_HELD(button_b_held)) try_rotate(-1);
+        if (current_piece.is_rolling && (game_state_ctr % 30 == 0)) try_rotate(1);
         if (prev_state != current_piece.rotation_state && prev_kicked) current_piece.lock_delay = 0;
 
         // Move.
