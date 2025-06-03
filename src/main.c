@@ -83,7 +83,7 @@ int old_w = 0;
 int old_h = 0;
 bool disable_selective_gravity_after_clear = false;
 bool item_mode = false;
-Improve int items = 0;
+int items = 0;
 int item_bag[32] = {0};
 int item_hist[2] = {ITEM_NEGATE, ITEM_SHOTGUN};
 char effect_overlay[30] = {0};
@@ -1468,6 +1468,8 @@ void do_roll_block() {
     SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Rolling Block!");
     effect_overlay_ctr = 120;
     next_piece[0].is_rolling = true;
+    next_piece[1].is_rolling = true;
+    next_piece[2].is_rolling = true;
 }
 
 int get_gravity() {
