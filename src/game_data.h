@@ -262,8 +262,8 @@ char* tgm2_plus_sequence[] = {
     "XXX   XXXX"
 };
 
-size_t effects_list_len = 27;
-effect_def_t effects_list[27] = {
+size_t effects_list_len = 29;
+effect_def_t effects_list[29] = {
     {"TORIKAN_SCOPE_SECTION", TORIKAN_SCOPE_MASK},
     //{"TORIKAN_SCOPE_GAME", 0},
     {"TORIKAN_EFFECT_GAMEOVER", TORIKAN_EFFECT_MASK},
@@ -293,6 +293,38 @@ effect_def_t effects_list[27] = {
     {"FIELD_DEL_LOWER", FIELD_DEL_LOWER_MASK},
     {"FIELD_DEL_EVEN", FIELD_DEL_EVEN_MASK},
     {"FIELD_180", FIELD_180_MASK},
-    {"RANDOM_ITEM", RANDOM_ITEM_MASK},
-    {"ITEM_MODE", ITEM_MODE_MASK}
+    {"HARD_BLOCK", HARD_BLOCK_MASK},
+    {"ITEM_MODE", ITEM_MODE_MASK},
+    {"RANDOM_EFFECT", RANDOM_EFFECT_MASK},
+    {"EFFECT_AS_ITEM", EFFECT_AS_ITEM_MASK}
+};
+
+SDL_FRect texture_atlas[] = {
+    {0,    0, 32, 32}, // BLOCK_VOID
+    {32,   0, 32, 32}, // BLOCK_X
+    {64,   0, 32, 32}, // BLOCK_I
+    {0,   32, 32, 32}, // BLOCK_Z
+    {32,  32, 32, 32}, // BLOCK_S
+    {64,  32, 32, 32}, // BLOCK_J
+    {0,   64, 32, 32}, // BLOCK_L
+    {32,  64, 32, 32}, // BLOCK_O
+    {64,  64, 32, 32}, // BLOCK_T
+    {0,   96, 32, 32}, // BLOCK_BONE
+    {32,  96, 32, 32}, // BLOCK_HARD
+    {64,  96, 32, 32}, // ITEM_HARD
+    {0,  128, 32, 32}, // ITEM_SHOTGUN
+    {32, 128, 32, 32}, // ITEM_LASER
+    {64, 128, 32, 32}, // ITEM_NEGATE
+    {0,  160, 32, 32}, // ITEM_DEL_UPPER
+    {32, 160, 32, 32}, // ITEM_DEL_LOWER
+    {64, 160, 32, 32}, // ITEM_DEL_EVEN
+    {0,  192, 32, 32}, // ITEM_PUSH_LEFT
+    {32, 192, 32, 32}, // ITEM_PUSH_RIGHT
+    {64, 192, 32, 32}, // ITEM_PUSH_DOWN
+    {0,  224, 32, 32}, // ITEM_180
+    {32, 224, 32, 32}, // ITEM_BIG_BLOCK
+    {64, 224, 32, 32}, // ITEM_ANTIGRAVITY
+    {0,  0,   25, 7},  // TEXTURE_NEXT
+    {0,  7,   25, 7},  // TEXTURE_HOLD
+    {96, 0,   96, 176} // TEXTURE_FIELD
 };

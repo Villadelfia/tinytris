@@ -31,16 +31,9 @@ Controls can be rebound in `config.ini`. These are the defaults:
 Game controllers are supported as well. The title screen will display the default bindings as applied to the connected first controller.
 
 ## Replacing graphics
-The main skin for the blocks can be replaced by providing a file named `block.png` in a `data` directory alongside the game exe.
+The main graphics can be replaced by providing a file named `atlas.png` in a `data` directory alongside the game exe.
 
-This image should contain a 4 wide by 2 high grid of square images. These images represent the shapes:
-
-```text
-XILO
-ZTJS
-```
-
-X here being the skin used when you top out.
+An example of this file is included in the assets directory.
 
 ## Replacing sounds
 All of the built-in sounds can be overridden by providing specific ogg files in a `data` directory alongside the game exe:

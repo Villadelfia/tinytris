@@ -27,8 +27,15 @@ typedef enum {
     ITEM_PUSH_DOWN,
     ITEM_180,
     ITEM_BIG_BLOCK,
-    ITEM_ANTIGRAVITY
+    ITEM_ANTIGRAVITY,
+    BLOCK_TYPE_CNT
 } block_type_t;
+
+typedef enum {
+    TEXTURE_NEXT = BLOCK_TYPE_CNT,
+    TEXTURE_HOLD,
+    TEXTURE_FIELD
+} texture_t;
 
 typedef enum {
     LOCK_LOCKED,
@@ -47,10 +54,12 @@ typedef struct {
     int locked_at;
     bool fading;
     float fade_state;
+    uint64_t id;
 } block_t;
 
 typedef struct {
     block_type_t type;
+    block_type_t subtype;
     int rotation_state;
     int x;
     int y;
@@ -58,6 +67,8 @@ typedef struct {
     float lock_param;
     int lock_delay;
     bool floor_kicked;
+    bool is_bone;
+    bool is_big;
 } live_block_t;
 
 typedef struct {
@@ -150,6 +161,8 @@ typedef struct {
 #define FIELD_DEL_LOWER_MASK         (0x00400000)
 #define FIELD_DEL_EVEN_MASK          (0x00800000)
 #define FIELD_180_MASK               (0x01000000)
+#define HARD_BLOCK_MASK              (0x02000000)
 
+#define EFFECT_AS_ITEM_MASK          (0x20000000)
 #define ITEM_MODE_MASK               (0x40000000)
-#define RANDOM_ITEM_MASK             (0x80000000)
+#define RANDOM_EFFECT_MASK           (0x80000000)

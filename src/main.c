@@ -15,10 +15,7 @@
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Gamepad *gamepad = NULL;
-static SDL_Texture *block_texture = NULL;
-static SDL_Texture *bone_texture = NULL;
-static SDL_Texture *border_texture = NULL;
-static SDL_Texture *next_hold_texture = NULL;
+static SDL_Texture *atlas_texture = NULL;
 static SDL_AudioDeviceID audio_device = 0;
 static SDL_AudioStream *music = NULL;
 #define FRAME_TIME (SDL_NS_PER_SECOND / SDL_SINT64_C(60))
@@ -36,9 +33,9 @@ block_t field[10][24] = {0};
 block_type_t history[4] = {0};
 block_type_t bag[35] = {0};
 int histogram[7] = {0};
-block_type_t next_piece[3] = {0};
-block_type_t held_piece = BLOCK_VOID;
-live_block_t current_piece;
+live_block_t next_piece[3] = {0};
+live_block_t held_piece = {0};
+live_block_t current_piece = {0};
 game_state_t game_state = STATE_WAIT;
 game_state_t game_state_old = STATE_WAIT;
 int game_state_ctr = 60;
@@ -76,14 +73,11 @@ int locked_settings[SETTINGS_COUNT] = {0};
 int frozen_rows = 0;
 bool frozen_ignore_next = false;
 bool bones = false;
-bool active_piece_is_bone = false;
-bool held_piece_is_bone = false;
-bool queue_is_bone[3] = {false, false, false};
 bool ti_garbage_quota = false;
 bool big_mode = false;
 bool big_mode_half_columns = false;
-bool big_piece = false;
 bool next_big_piece = false;
+block_type_t next_subtype = BLOCK_VOID;
 bool selective_gravity = false;
 int old_w = 0;
 int old_h = 0;
@@ -94,6 +88,7 @@ int item_bag[27] = {0};
 char effect_overlay[30] = {0};
 int effect_overlay_ctr = 0;
 bool paused = false;
+uint64_t id = 0;
 
 sound_t lineclear_sound;
 sound_t linecollapse_sound;
@@ -139,7 +134,7 @@ int32_t button_details_held = 0;
 
 void check_clears();
 void wipe_clears();
-void collapse_clears();
+void collapse_clears(bool sound);
 void do_shotgun();
 void do_laser();
 void do_negate();
@@ -150,7 +145,11 @@ void do_push_left();
 void do_push_right();
 void do_push_down();
 void do_180();
+void do_big_block();
+void do_antigravity();
 void do_random_effect();
+void spawn_random_effect();
+void do_hard_block();
 
 static int SDLCALL compare_int(const void *a, const void *b) {
     const int A = *(const int *)a;
@@ -278,7 +277,7 @@ void check_garbage() {
 
 void add_garbage() {
     if (item_mode) {
-        do_random_effect();
+        spawn_random_effect();
         check_garbage();
         return;
     }
@@ -385,6 +384,35 @@ void fill_item_bag() {
     }
 }
 
+void spawn_random_effect() {
+    int divisor = 32;
+    if (items <= 16) divisor = 16;
+    if (items <= 8) divisor = 8;
+    if (items <= 4) divisor = 4;
+    if (items <= 2) divisor = 2;
+    int selection = (int)(uint8_t)xoroshiro_next() % divisor;
+    while (selection >= items) selection = (int)(uint8_t)xoroshiro_next() % divisor;
+    int result = item_bag[selection];
+    item_bag[selection] = INT32_MAX;
+    SDL_qsort(item_bag, 27, sizeof(int), compare_int);
+
+    items--;
+    if (items == 0) fill_item_bag();
+
+    if (result == 0) next_subtype = ITEM_SHOTGUN;
+    if (result == 1) next_subtype = ITEM_LASER;
+    if (result == 2) next_subtype = ITEM_NEGATE;
+    if (result == 3) next_subtype = ITEM_DEL_UPPER;
+    if (result == 4) next_subtype = ITEM_DEL_LOWER;
+    if (result == 5) next_subtype = ITEM_DEL_EVEN;
+    if (result == 6) next_subtype = ITEM_PUSH_LEFT;
+    if (result == 7) next_subtype = ITEM_PUSH_RIGHT;
+    if (result == 8) next_subtype = ITEM_PUSH_DOWN;
+    if (result == 9) next_subtype = ITEM_180;
+    if (result == 10) next_subtype = ITEM_BIG_BLOCK;
+    if (result == 11) next_subtype = ITEM_ANTIGRAVITY;
+}
+
 void do_random_effect() {
     int divisor = 32;
     if (items <= 16) divisor = 16;
@@ -410,21 +438,8 @@ void do_random_effect() {
     if (result == 7) do_push_right();
     if (result == 8) do_push_down();
     if (result == 9) do_180();
-    if (result == 10) {
-        SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-        SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Big Block!");
-        effect_overlay_ctr = 120;
-        big_piece = true;
-        next_big_piece = game_state == STATE_LOCKFLASH;
-        if (current_piece.type != BLOCK_VOID) current_piece.x = 2;
-    }
-    if (result == 11) {
-        SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-        SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Antigravity!");
-        effect_overlay_ctr = 120;
-        selective_gravity = true;
-        disable_selective_gravity_after_clear = true;
-    }
+    if (result == 10) do_big_block();
+    if (result == 11) do_antigravity();
 }
 
 void check_effect() {
@@ -450,11 +465,15 @@ void check_effect() {
     bool should_do_180 = (effect & FIELD_180_MASK) != 0;
     selective_gravity = (effect & SELECTIVE_GRAVITY_MASK) != 0;
     if (selective_gravity) {
-        disable_selective_gravity_after_clear = false;
-        SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-        SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Antigravity!");
-        effect_overlay_ctr = 120;
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) {
+            next_subtype = ITEM_ANTIGRAVITY;
+            selective_gravity = false;
+        } else {
+            do_antigravity();
+            disable_selective_gravity_after_clear = false;
+        }
     }
+
     int prev_frozen = frozen_rows;
     frozen_rows = current_timing->freeze;
     if (frozen_rows < 0) frozen_rows = 0;
@@ -465,20 +484,22 @@ void check_effect() {
     bones = (effect & BONES_MASK) != 0;
     ti_garbage_quota = (effect & TI_GARBAGE_QUOTA) != 0;
     big_mode = ((effect & BIG_MODE_MASK) != 0 || get_setting_value(BIG_MODE_SETTING_IDX));
-    big_piece = (effect & BIG_PIECE_MASK) != 0;
-    next_big_piece = false;
-    if (big_piece) {
-        if (game_state == STATE_LOCKFLASH) next_big_piece = true;
-        SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-        SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Big Block!");
-        effect_overlay_ctr = 120;
+    if ((effect & BIG_PIECE_MASK) != 0) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_BIG_BLOCK;
+        else do_big_block();
+    }
+    if ((effect & HARD_BLOCK_MASK) != 0) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_HARD;
+        else do_hard_block();
     }
     big_mode_half_columns = (effect & BIG_MODE_HALF_PIECE_MASK) != 0;
     item_mode = (effect & ITEM_MODE_MASK) != 0;
 
-    if ((effect & RANDOM_ITEM_MASK) != 0) do_random_effect();
+    if ((effect & RANDOM_EFFECT_MASK) != 0) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) spawn_random_effect();
+        else do_random_effect();
+    }
 
-    if (big_piece && current_piece.type != BLOCK_VOID) current_piece.x = 2;
     if (torikan != 0) {
         bool hit_torikan = game_details.total_frames > torikan;
         if (torikan_scope) hit_torikan = time_spent(level-100, level) > torikan;
@@ -525,16 +546,46 @@ void check_effect() {
         }
     }
 
-    if (should_do_shotgun) do_shotgun();
-    if (should_do_laser) do_laser();
-    if (should_do_negate) do_negate();
-    if (should_do_del_even) do_del_even();
-    if (should_do_del_lower) do_del_lower();
-    if (should_do_del_upper) do_del_upper();
-    if (should_do_push_left) do_push_left();
-    if (should_do_push_right) do_push_right();
-    if (should_do_push_down) do_push_down();
-    if (should_do_180) do_180();
+    if (should_do_shotgun) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_SHOTGUN;
+        else do_shotgun();
+    }
+    if (should_do_laser) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_LASER;
+        else do_laser();
+    }
+    if (should_do_negate) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_NEGATE;
+        else do_negate();
+    }
+    if (should_do_del_even) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_DEL_EVEN;
+        else do_del_even();
+    }
+    if (should_do_del_lower) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_DEL_LOWER;
+        else do_del_lower();
+    }
+    if (should_do_del_upper) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_DEL_UPPER;
+        else do_del_upper();
+    }
+    if (should_do_push_left) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_PUSH_LEFT;
+        else do_push_left();
+    }
+    if (should_do_push_right) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_PUSH_RIGHT;
+        else do_push_right();
+    }
+    if (should_do_push_down) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_PUSH_DOWN;
+        else do_push_down();
+    }
+    if (should_do_180) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_180;
+        else do_180();
+    }
 
     if (invisibility_hint_once) {
         show_edge_timer = 60;
@@ -549,13 +600,12 @@ void check_effect() {
         int old_clears = lines_cleared;
         if (old_clears != 0) {
             wipe_clears();
-            collapse_clears();
+            collapse_clears(false);
         }
         check_clears();
         if (old_clears == 0 && lines_cleared != 0) {
             wipe_clears();
-            collapse_clears();
-            play_sound(&linecollapse_sound);
+            collapse_clears(true);
         }
     }
 }
@@ -653,7 +703,7 @@ int piece_collides(const live_block_t piece) {
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
             if (rotation[4*j + i] != ' ' && piece.y + j + 1 >= 0) {
-                if (big_mode || big_piece) {
+                if (big_mode || piece.is_big) {
                     if (!is_empty(piece.x + 2*i, piece.y + 2*j) || !is_empty(piece.x + 2*i + 1, piece.y + 2*j) || !is_empty(piece.x + 2*i, piece.y + 2*j + 1) || !is_empty(piece.x + 2*i + 1, piece.y + 2*j + 1)) {
                         return 4*j+i;
                     }
@@ -676,51 +726,63 @@ void write_piece(const live_block_t piece) {
 
     for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
-            if (big_mode || big_piece) {
+            if (big_mode || piece.is_big) {
                 if (rotation[4*j + i] != ' ' && piece.x + 2*i >= 0 && piece.x + 2*i < 10 && piece.y + 2*j >= 0 && piece.y + 2*j < 24) {
-                    field[piece.x + 2*i][piece.y + 2*j].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i][piece.y + 2*j].type = piece.is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i][piece.y + 2*j].subtype = piece.subtype;
                     field[piece.x + 2*i][piece.y + 2*j].lock_param = 1.0f;
                     field[piece.x + 2*i][piece.y + 2*j].lock_status = LOCK_LOCKED;
                     field[piece.x + 2*i][piece.y + 2*j].locked_at = game_details.total_frames;
                     field[piece.x + 2*i][piece.y + 2*j].fading = false;
                     field[piece.x + 2*i][piece.y + 2*j].fade_state = 1.0f;
+                    field[piece.x + 2*i][piece.y + 2*j].id = id;
                 }
                 if (rotation[4*j + i] != ' ' && piece.x + 2*i >= 0 && piece.x + 2*i < 10 && piece.y + 2*j + 1 >= 0 && piece.y + 2*j + 1 < 24) {
-                    field[piece.x + 2*i][piece.y + 2*j + 1].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i][piece.y + 2*j + 1].type = piece.is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i][piece.y + 2*j + 1].subtype = piece.subtype;
                     field[piece.x + 2*i][piece.y + 2*j + 1].lock_param = 1.0f;
                     field[piece.x + 2*i][piece.y + 2*j + 1].lock_status = LOCK_LOCKED;
                     field[piece.x + 2*i][piece.y + 2*j + 1].locked_at = game_details.total_frames;
                     field[piece.x + 2*i][piece.y + 2*j + 1].fading = false;
                     field[piece.x + 2*i][piece.y + 2*j + 1].fade_state = 1.0f;
+                    field[piece.x + 2*i][piece.y + 2*j + 1].id = id;
                 }
                 if (rotation[4*j + i] != ' ' && piece.x + 2*i >= 0 && piece.x + 2*i + 1 < 10 && piece.y + 2*j >= 0 && piece.y + 2*j < 24) {
-                    field[piece.x + 2*i + 1][piece.y + 2*j].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i + 1][piece.y + 2*j].type = piece.is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i + 1][piece.y + 2*j].subtype = piece.subtype;
                     field[piece.x + 2*i + 1][piece.y + 2*j].lock_param = 1.0f;
                     field[piece.x + 2*i + 1][piece.y + 2*j].lock_status = LOCK_LOCKED;
                     field[piece.x + 2*i + 1][piece.y + 2*j].locked_at = game_details.total_frames;
                     field[piece.x + 2*i + 1][piece.y + 2*j].fading = false;
                     field[piece.x + 2*i + 1][piece.y + 2*j].fade_state = 1.0f;
+                    field[piece.x + 2*i + 1][piece.y + 2*j].id = id;
                 }
                 if (rotation[4*j + i] != ' ' && piece.x + 2*i >= 0 && piece.x + 2*i + 1 < 10 && piece.y + 2*j + 1 >= 0 && piece.y + 2*j + 1 < 24) {
-                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].type = piece.is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].subtype = piece.subtype;
                     field[piece.x + 2*i + 1][piece.y + 2*j + 1].lock_param = 1.0f;
                     field[piece.x + 2*i + 1][piece.y + 2*j + 1].lock_status = LOCK_LOCKED;
                     field[piece.x + 2*i + 1][piece.y + 2*j + 1].locked_at = game_details.total_frames;
                     field[piece.x + 2*i + 1][piece.y + 2*j + 1].fading = false;
                     field[piece.x + 2*i + 1][piece.y + 2*j + 1].fade_state = 1.0f;
+                    field[piece.x + 2*i + 1][piece.y + 2*j + 1].id = id;
                 }
             } else {
                 if (rotation[4*j + i] != ' ' && piece.x + i >= 0 && piece.x + i < 10 && piece.y + j + 1 >= 0 && piece.y + j + 1 < 24) {
-                    field[piece.x + i][piece.y + j + 1].type = active_piece_is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + i][piece.y + j + 1].type = piece.is_bone ? BLOCK_BONE : piece.type;
+                    field[piece.x + i][piece.y + j + 1].subtype = piece.subtype;
                     field[piece.x + i][piece.y + j + 1].lock_param = 1.0f;
                     field[piece.x + i][piece.y + j + 1].lock_status = LOCK_LOCKED;
                     field[piece.x + i][piece.y + j + 1].locked_at = game_details.total_frames;
                     field[piece.x + i][piece.y + j + 1].fading = false;
                     field[piece.x + i][piece.y + j + 1].fade_state = 1.0f;
+                    field[piece.x + i][piece.y + j + 1].id = id;
                 }
             }
         }
     }
+
+    id++;
 }
 
 void try_move(const int direction) {
@@ -813,7 +875,7 @@ void try_rotate(const int direction) {
             }
 
             // Try 3 and 4 for big mode.
-            if (big_mode || big_piece) {
+            if (big_mode || current_piece.is_big) {
                 active.x += 1;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
@@ -836,7 +898,7 @@ void try_rotate(const int direction) {
                 current_piece.x -= 1;
             }
 
-            if (big_mode || big_piece) {
+            if (big_mode || current_piece.is_big) {
                 active.x -= 1;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
@@ -862,7 +924,7 @@ void try_rotate(const int direction) {
             }
 
             // Try 3 and 4 for big mode.
-            if (big_mode || big_piece) {
+            if (big_mode || current_piece.is_big) {
                 active.y -= 1;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
@@ -889,7 +951,7 @@ void try_rotate(const int direction) {
             return;
         }
 
-        if (big_mode || big_piece) {
+        if (big_mode || current_piece.is_big) {
             active.x += 1;
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
@@ -906,7 +968,7 @@ void try_rotate(const int direction) {
             return;
         }
 
-        if (big_mode || big_piece) {
+        if (big_mode || current_piece.is_big) {
             active.x -= 1;
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
@@ -925,7 +987,7 @@ void try_rotate(const int direction) {
                 current_piece.floor_kicked = true;
             }
 
-            if (big_mode || big_piece) {
+            if (big_mode || current_piece.is_big) {
                 active.y -= 1;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
@@ -1014,8 +1076,30 @@ void do_negate() {
     }
 }
 
+void wipe_subtype_by_id(uint64_t block_id) {
+    for (int x = 0; x < 10; ++x) {
+        for (int y = 0; y < 24; ++y) {
+            if (field[x][y].id == block_id) field[x][y].subtype = BLOCK_VOID;
+        }
+    }
+}
+
 void check_clears() {
     for (int i = 0; i < 24; ++i) clears[i] = -1;
+
+    bool should_do_hard_block = false;
+    bool should_do_shotgun = false;
+    bool should_do_laser = false;
+    bool should_do_negate = false;
+    bool should_do_del_upper = false;
+    bool should_do_del_lower = false;
+    bool should_do_del_even = false;
+    bool should_do_push_left = false;
+    bool should_do_push_right = false;
+    bool should_do_push_down = false;
+    bool should_do_180 = false;
+    bool should_do_big_block = false;
+    bool should_do_antigravity = false;
 
     int ct = 0;
     for (int i = 0; i < (24 - (frozen_ignore_next ? 0 : frozen_rows)); i++) {
@@ -1030,9 +1114,44 @@ void check_clears() {
             field[7][i].type != BLOCK_VOID &&
             field[8][i].type != BLOCK_VOID &&
             field[9][i].type != BLOCK_VOID) {
+            for (int x = 0; x < 10; ++x) {
+                if (field[x][i].subtype != BLOCK_VOID && field[x][i].subtype != BLOCK_HARD) {
+                    block_type_t subtype = field[x][i].subtype;
+
+                    if (subtype == ITEM_HARD) should_do_hard_block = true;
+                    if (subtype == ITEM_SHOTGUN) should_do_shotgun = true;
+                    if (subtype == ITEM_LASER) should_do_laser = true;
+                    if (subtype == ITEM_NEGATE) should_do_negate = true;
+                    if (subtype == ITEM_DEL_UPPER) should_do_del_upper = true;
+                    if (subtype == ITEM_DEL_LOWER) should_do_del_lower = true;
+                    if (subtype == ITEM_DEL_EVEN) should_do_del_even = true;
+                    if (subtype == ITEM_PUSH_LEFT) should_do_push_left = true;
+                    if (subtype == ITEM_PUSH_RIGHT) should_do_push_right = true;
+                    if (subtype == ITEM_PUSH_DOWN) should_do_push_down = true;
+                    if (subtype == ITEM_180) should_do_180 = true;
+                    if (subtype == ITEM_BIG_BLOCK) should_do_big_block = true;
+                    if (subtype == ITEM_ANTIGRAVITY) should_do_antigravity = true;
+
+                    wipe_subtype_by_id(field[x][i].id);
+                }
+            }
             clears[ct++] = i;
         }
     }
+
+    if (should_do_hard_block) do_hard_block();
+    if (should_do_shotgun) do_shotgun();
+    if (should_do_laser) do_laser();
+    if (should_do_negate) do_negate();
+    if (should_do_del_upper) do_del_upper();
+    if (should_do_del_lower) do_del_lower();
+    if (should_do_del_even) do_del_even();
+    if (should_do_push_left) do_push_left();
+    if (should_do_push_right) do_push_right();
+    if (should_do_push_down) do_push_down();
+    if (should_do_180) do_180();
+    if (should_do_big_block) do_big_block();
+    if (should_do_antigravity) do_antigravity();
 
     if (frozen_rows > 0 && ct == 0 && !frozen_ignore_next) {
         for (int i = 24 - frozen_rows; i < 24; i++) {
@@ -1064,20 +1183,20 @@ void check_clears() {
 void wipe_clears() {
     for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) continue;
-        field[0][clears[i]].type = BLOCK_VOID;
-        field[1][clears[i]].type = BLOCK_VOID;
-        field[2][clears[i]].type = BLOCK_VOID;
-        field[3][clears[i]].type = BLOCK_VOID;
-        field[4][clears[i]].type = BLOCK_VOID;
-        field[5][clears[i]].type = BLOCK_VOID;
-        field[6][clears[i]].type = BLOCK_VOID;
-        field[7][clears[i]].type = BLOCK_VOID;
-        field[8][clears[i]].type = BLOCK_VOID;
-        field[9][clears[i]].type = BLOCK_VOID;
+        bool should_not_drop = false;
+        for (int x = 0; x < 10; ++x) {
+            if (field[x][clears[i]].subtype == BLOCK_HARD) {
+                field[x][clears[i]].subtype = BLOCK_VOID;
+                should_not_drop = true;
+            } else {
+                field[x][clears[i]].type = BLOCK_VOID;
+            }
+        }
+        if (should_not_drop) clears[i] = -1;
     }
 }
 
-void collapse_clears() {
+void collapse_clears(bool sound) {
     if (selective_gravity) {
         if (lines_cleared != 0 && disable_selective_gravity_after_clear) selective_gravity = false;
         lines_cleared = 0;
@@ -1085,6 +1204,7 @@ void collapse_clears() {
     }
     SDL_qsort(clears, 24, sizeof(int), compare_int);
 
+    int collapsed = 0;
     for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) continue;
         for (int j = clears[i]; j > 0; j--) {
@@ -1109,7 +1229,9 @@ void collapse_clears() {
         field[7][0].type = BLOCK_VOID;
         field[8][0].type = BLOCK_VOID;
         field[9][0].type = BLOCK_VOID;
+        collapsed++;
     }
+    if (collapsed > 0 && sound) play_sound(&linecollapse_sound);
     lines_cleared = 0;
 }
 
@@ -1273,6 +1395,28 @@ void do_180() {
     SDL_memcpy(field, field_copy, sizeof field);
 }
 
+void do_big_block() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Big Block!");
+    effect_overlay_ctr = 120;
+    next_piece[0].is_big = true;
+}
+
+void do_antigravity() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Antigravity!");
+    effect_overlay_ctr = 120;
+    selective_gravity = true;
+    disable_selective_gravity_after_clear = true;
+}
+
+void do_hard_block() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Hard Block!");
+    effect_overlay_ctr = 120;
+    next_piece[0].subtype = BLOCK_HARD;
+}
+
 int get_gravity() {
     if (get_setting_value(GRAVITY_SETTING_IDX) == 1) return 5120;
     return current_timing->g;
@@ -1284,7 +1428,7 @@ block_type_t generate_piece() {
     return (block_type_t)(piece + 2);
 }
 
-block_type_t generate_valid_piece() {
+live_block_t generate_valid_piece() {
     block_type_t result = BLOCK_VOID;
     if (get_setting_value(RNG_SETTING_IDX) == 2) {
         block_type_t droughted_piece = BLOCK_VOID;
@@ -1353,55 +1497,49 @@ block_type_t generate_valid_piece() {
     history[1] = history[0];
     history[0] = result;
 
-    return result;
+    live_block_t ret = {0};
+    ret.type = result;
+    ret.is_bone = bones;
+    ret.is_big = big_mode || next_big_piece;
+    ret.subtype = next_subtype;
+    next_subtype = BLOCK_VOID;
+    next_big_piece = false;
+    return ret;
 }
 
 void do_hold(bool ihs) {
     if (!can_hold) return;
     can_hold = false;
 
-    if (held_piece == BLOCK_VOID) {
-        held_piece_is_bone = active_piece_is_bone;
-        block_type_t result = generate_valid_piece();
-        held_piece = current_piece.type;
+    if (held_piece.type == BLOCK_VOID) {
+        live_block_t result = generate_valid_piece();
+        held_piece.type = current_piece.type;
+        held_piece.subtype = current_piece.subtype;
+        held_piece.is_bone = current_piece.is_bone;
+        held_piece.is_big = current_piece.is_big;
         current_piece = (live_block_t){0};
-        current_piece.type = next_piece[0];
+        current_piece = next_piece[0];
         next_piece[0] = next_piece[1];
         next_piece[1] = next_piece[2];
         next_piece[2] = result;
 
-        active_piece_is_bone = queue_is_bone[0];
-        if (bones) {
-            if (!queue_is_bone[2]) queue_is_bone[2] = true;
-            else if (!queue_is_bone[1]) queue_is_bone[1] = true;
-            else if (!queue_is_bone[0]) queue_is_bone[0] = true;
-        } else {
-            if (queue_is_bone[2]) queue_is_bone[2] = false;
-            else if (queue_is_bone[1]) queue_is_bone[1] = false;
-            else if (queue_is_bone[0]) queue_is_bone[0] = false;
-        }
-
         if (!ihs) {
-            if (next_piece[0] == BLOCK_I) play_sound(&i_sound);
-            if (next_piece[0] == BLOCK_S) play_sound(&s_sound);
-            if (next_piece[0] == BLOCK_Z) play_sound(&z_sound);
-            if (next_piece[0] == BLOCK_J) play_sound(&j_sound);
-            if (next_piece[0] == BLOCK_L) play_sound(&l_sound);
-            if (next_piece[0] == BLOCK_O) play_sound(&o_sound);
-            if (next_piece[0] == BLOCK_T) play_sound(&t_sound);
+            if (next_piece[0].type == BLOCK_I) play_sound(&i_sound);
+            if (next_piece[0].type == BLOCK_S) play_sound(&s_sound);
+            if (next_piece[0].type == BLOCK_Z) play_sound(&z_sound);
+            if (next_piece[0].type == BLOCK_J) play_sound(&j_sound);
+            if (next_piece[0].type == BLOCK_L) play_sound(&l_sound);
+            if (next_piece[0].type == BLOCK_O) play_sound(&o_sound);
+            if (next_piece[0].type == BLOCK_T) play_sound(&t_sound);
         }
     } else {
-        bool temp = active_piece_is_bone;
-        active_piece_is_bone = held_piece_is_bone;
-        held_piece_is_bone = temp;
-        block_type_t result = held_piece;
-        held_piece = current_piece.type;
-        current_piece = (live_block_t){0};
-        current_piece.type = result;
+        live_block_t temp = current_piece;
+        current_piece = held_piece;
+        held_piece = temp;
     }
 
     current_piece.x = 3;
-    if (big_mode || big_piece) current_piece.x = 2;
+    if (big_mode || current_piece.is_big) current_piece.x = 2;
     current_piece.y = 2;
     current_piece.lock_param = 1.0f;
     current_piece.lock_status = LOCK_UNLOCKED;
@@ -1435,31 +1573,18 @@ void do_hold(bool ihs) {
 
 void generate_next_piece() {
     can_hold = true;
-    block_type_t result = generate_valid_piece();
-    current_piece = (live_block_t){0};
-    current_piece.type = next_piece[0];
+    current_piece = next_piece[0];
     next_piece[0] = next_piece[1];
     next_piece[1] = next_piece[2];
-    next_piece[2] = result;
+    next_piece[2] = generate_valid_piece();;
     current_piece.x = 3;
-    if (big_mode || big_piece) current_piece.x = 2;
+    if (big_mode || current_piece.is_big) current_piece.x = 2;
     current_piece.y = 2;
     current_piece.lock_param = 1.0f;
     current_piece.lock_status = LOCK_UNLOCKED;
     current_piece.rotation_state = 0;
     current_piece.lock_delay = current_timing->lock;
     current_piece.floor_kicked = false;
-
-    active_piece_is_bone = queue_is_bone[0];
-    if (bones) {
-        if (!queue_is_bone[2]) queue_is_bone[2] = true;
-        else if (!queue_is_bone[1]) queue_is_bone[1] = true;
-        else if (!queue_is_bone[0]) queue_is_bone[0] = true;
-    } else {
-        if (queue_is_bone[2]) queue_is_bone[2] = false;
-        else if (queue_is_bone[1]) queue_is_bone[1] = false;
-        else if (queue_is_bone[0]) queue_is_bone[0] = false;
-    }
 
     // Apply IHS.
     if (IS_HELD(button_hold_held) && get_setting_value(HOLD_SETTING_IDX) == 1) do_hold(true);
@@ -1474,13 +1599,13 @@ void generate_next_piece() {
     }
 
     // Play sound.
-    if (next_piece[0] == BLOCK_I) play_sound(&i_sound);
-    if (next_piece[0] == BLOCK_S) play_sound(&s_sound);
-    if (next_piece[0] == BLOCK_Z) play_sound(&z_sound);
-    if (next_piece[0] == BLOCK_J) play_sound(&j_sound);
-    if (next_piece[0] == BLOCK_L) play_sound(&l_sound);
-    if (next_piece[0] == BLOCK_O) play_sound(&o_sound);
-    if (next_piece[0] == BLOCK_T) play_sound(&t_sound);
+    if (next_piece[0].type == BLOCK_I) play_sound(&i_sound);
+    if (next_piece[0].type == BLOCK_S) play_sound(&s_sound);
+    if (next_piece[0].type == BLOCK_Z) play_sound(&z_sound);
+    if (next_piece[0].type == BLOCK_J) play_sound(&j_sound);
+    if (next_piece[0].type == BLOCK_L) play_sound(&l_sound);
+    if (next_piece[0].type == BLOCK_O) play_sound(&o_sound);
+    if (next_piece[0].type == BLOCK_T) play_sound(&t_sound);
 
     if (get_gravity() == 5120) {
         while (!piece_grounded()) try_descend();
@@ -1509,13 +1634,26 @@ void generate_first_piece() {
     block_type_t result = generate_piece();
     while(result == BLOCK_S || result == BLOCK_Z || result == BLOCK_O) result = generate_piece();
     history[0] = result;
+
     current_piece = (live_block_t){0};
     current_piece.type = BLOCK_VOID;
-    next_piece[0] = result;
+
+    held_piece = (live_block_t){0};
+    can_hold = true;
+
+    next_piece[0] = (live_block_t){0};
+    next_piece[1] = (live_block_t){0};
+    next_piece[2] = (live_block_t){0};
+
+    next_piece[0].type = result;
+    next_piece[0].subtype = next_subtype;
+    next_subtype = BLOCK_VOID;
+    next_piece[0].is_bone = bones;
+    next_piece[0].is_big = big_mode || next_big_piece;
+    next_big_piece = false;
+
     next_piece[1] = generate_valid_piece();
     next_piece[2] = generate_valid_piece();
-    held_piece = BLOCK_VOID;
-    can_hold = true;
 }
 
 void gray_line(const int row) {
@@ -1524,48 +1662,16 @@ void gray_line(const int row) {
     }
 }
 
-void render_raw_block(const int col, const int row, const block_type_t block, const lock_status_t lockStatus, const float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow, float fade_state) {
-    SDL_FRect src = {0};
+void render_raw_block(const int col, const int row, const block_type_t block, const lock_status_t lockStatus, const float lockParam, bool voidToLeft, bool voidToRight, bool voidAbove, bool voidBelow, float fade_state, bool big) {
+    if (block == BLOCK_VOID) return;
+
+    SDL_FRect src = texture_atlas[block];
     SDL_FRect dest = {
         .x = FIELD_X_OFFSET + ((float)col * 16.0f),
-        .y = FIELD_Y_OFFSET + ((float)row * 16.0f) - (((big_mode || big_piece) && (lockStatus == LOCK_UNLOCKED || lockStatus == LOCK_GHOST || lockStatus == LOCK_FLASH)) ? 16.0f : 0.0f),
-        .w = ((big_mode || big_piece) && (lockStatus == LOCK_UNLOCKED || lockStatus == LOCK_GHOST || lockStatus == LOCK_FLASH)) ? 32.0f : 16.0f,
-        .h = ((big_mode || big_piece) && (lockStatus == LOCK_UNLOCKED || lockStatus == LOCK_GHOST || lockStatus == LOCK_FLASH)) ? 32.0f : 16.0f
+        .y = FIELD_Y_OFFSET + ((float)row * 16.0f) - (big ? 16.0f : 0.0f),
+        .w = big ? 32.0f : 16.0f,
+        .h = big ? 32.0f : 16.0f
     };
-    float w, h;
-    SDL_GetTextureSize(block_texture, &w, &h);
-    h /= 2.0f;
-    w /= 4.0f;
-    switch(block) {
-        case BLOCK_X:
-            src = (SDL_FRect){.x = 0.0f, .y = 0.0f, .w = w, .h = h};
-            break;
-        case BLOCK_I:
-            src = (SDL_FRect){.x = 16.0f, .y = 0.0f, .w = w, .h = h};
-            break;
-        case BLOCK_L:
-            src = (SDL_FRect){.x = 32.0f, .y = 0.0f, .w = w, .h = h};
-            break;
-        case BLOCK_O:
-            src = (SDL_FRect){.x = 48.0f, .y = 0.0f, .w = w, .h = h};
-            break;
-        case BLOCK_Z:
-            src = (SDL_FRect){.x = 0.0f, .y = 16.0f, .w = w, .h = h};
-            break;
-        case BLOCK_T:
-            src = (SDL_FRect){.x = 16.0f, .y = 16.0f, .w = w, .h = h};
-            break;
-        case BLOCK_J:
-            src = (SDL_FRect){.x = 32.0f, .y = 16.0f, .w = w, .h = h};
-            break;
-        case BLOCK_S:
-            src = (SDL_FRect){.x = 48.0f, .y = 16.0f, .w = w, .h = h};
-            break;
-        case BLOCK_BONE:
-            break;
-        default:
-            return;
-    }
 
     if (col == 0) voidToLeft = false;
     if (col == 9) voidToRight = false;
@@ -1622,15 +1728,17 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             dest.y -= 24.0f;
             dest.w = 8.0f;
             dest.h = 8.0f;
-            if (!can_hold) src = (SDL_FRect){.x = 0.0f, .y = 0.0f, .w = w, .h = h};
+            if (!can_hold) src = texture_atlas[BLOCK_X];
             break;
         default:
             return;
     }
 
-    SDL_SetTextureColorModFloat((block == BLOCK_BONE) ? bone_texture : block_texture, mod, mod, mod);
-    SDL_SetTextureAlphaModFloat((block == BLOCK_BONE) ? bone_texture : block_texture, moda);
-    if (moda > 0.0f) SDL_RenderTexture(renderer, (block == BLOCK_BONE) ? bone_texture : block_texture, (block == BLOCK_BONE) ? NULL : &src, &dest);
+    SDL_SetTextureColorModFloat(atlas_texture, mod, mod, mod);
+    SDL_SetTextureAlphaModFloat(atlas_texture, moda);
+    if (moda > 0.0f) SDL_RenderTexture(renderer, atlas_texture, &src, &dest);
+    SDL_SetTextureColorModFloat(atlas_texture, 1, 1, 1);
+    SDL_SetTextureAlphaModFloat(atlas_texture, 1);
 
     bool should_draw_edges = false;
     if (current_timing->fade == 0 && get_setting_value(INVISIBILITY_SETTING_IDX) == 0) should_draw_edges = true;
@@ -1685,52 +1793,57 @@ void render_field_block(const int x, const int y) {
     const bool voidToRight = x != 9 && field[x+1][y].type == BLOCK_VOID;
     const bool voidAbove = y != 4 && field[x][y-1].type == BLOCK_VOID;
     const bool voidBelow = y != 23 && field[x][y+1].type == BLOCK_VOID;
-    render_raw_block(x, y-4, field[x][y].type, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow, update_and_get_fade_state(&field[x][y]));
+    block_type_t to_draw = field[x][y].type;
+    if (field[x][y].subtype != BLOCK_VOID) to_draw = field[x][y].subtype;
+    render_raw_block(x, y-4, to_draw, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow, update_and_get_fade_state(&field[x][y]), false);
 }
 
 void render_held_block() {
-    switch(held_piece) {
+    block_type_t to_draw = held_piece.type;
+    if (held_piece.subtype != BLOCK_VOID) to_draw = held_piece.subtype;
+    else if (held_piece.is_bone) to_draw = BLOCK_BONE;
+    switch(held_piece.type) {
         case BLOCK_I:
-            render_raw_block(3, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_I, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_I, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_I, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(6, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_I, LOCK_HOLD, 1.0f, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(6, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
             break;
         case BLOCK_L:
-            render_raw_block(3, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_L, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_L, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_L, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(3, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_L, LOCK_HOLD, 1.0f, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(3, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
             break;
         case BLOCK_O:
-            render_raw_block(4, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_O, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_O, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_O, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_O, LOCK_HOLD, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
             break;
         case BLOCK_Z:
-            render_raw_block(3, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_Z, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_Z, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_Z, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_Z, LOCK_HOLD, 1.0f, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
             break;
         case BLOCK_T:
-            render_raw_block(3, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_T, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_T, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_T, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_T, LOCK_HOLD, 1.0f, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
             break;
         case BLOCK_J:
-            render_raw_block(3, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_J, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_J, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_J, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_J, LOCK_HOLD, 1.0f, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
             break;
         case BLOCK_S:
-            render_raw_block(4, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_S, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(5, -4, held_piece_is_bone ? BLOCK_BONE : BLOCK_S, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(3, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_S, LOCK_HOLD, 1.0f, false, false, false, false, 1);
-            render_raw_block(4, -3, held_piece_is_bone ? BLOCK_BONE : BLOCK_S, LOCK_HOLD, 1.0f, false, false, false, false, 1);
+            render_raw_block(4, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(3, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
+            render_raw_block(4, -3, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
             break;
         default:
             return;
@@ -1738,48 +1851,51 @@ void render_held_block() {
 }
 
 void render_next_block(int index) {
-    switch(next_piece[index]) {
+    block_type_t to_draw = next_piece[index].type;
+    if (next_piece[index].subtype != BLOCK_VOID) to_draw = next_piece[index].subtype;
+    else if (next_piece[index].is_bone) to_draw = BLOCK_BONE;
+    switch(next_piece[index].type) {
         case BLOCK_I:
-            render_raw_block(3, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_I, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_I, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_I, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(6, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_I, LOCK_NEXT, (float)index, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(6, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
             break;
         case BLOCK_L:
-            render_raw_block(3, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_L, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_L, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_L, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(3, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_L, LOCK_NEXT, (float)index, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(3, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
             break;
         case BLOCK_O:
-            render_raw_block(4, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_O, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_O, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_O, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_O, LOCK_NEXT, (float)index, false, false, false, false, 1);
+            render_raw_block(4, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
             break;
         case BLOCK_Z:
-            render_raw_block(3, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_Z, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_Z, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_Z, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_Z, LOCK_NEXT, (float)index, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
             break;
         case BLOCK_T:
-            render_raw_block(3, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_T, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_T, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_T, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_T, LOCK_NEXT, (float)index, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
             break;
         case BLOCK_J:
-            render_raw_block(3, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_J, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_J, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_J, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_J, LOCK_NEXT, (float)index, false, false, false, false, 1);
+            render_raw_block(3, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
             break;
         case BLOCK_S:
-            render_raw_block(4, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_S, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(5, -4, queue_is_bone[index] ? BLOCK_BONE : BLOCK_S, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(3, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_S, LOCK_NEXT, (float)index, false, false, false, false, 1);
-            render_raw_block(4, -3, queue_is_bone[index] ? BLOCK_BONE : BLOCK_S, LOCK_NEXT, (float)index, false, false, false, false, 1);
+            render_raw_block(4, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(5, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(3, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
+            render_raw_block(4, -3, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
             break;
         default:
             return;
@@ -1790,10 +1906,14 @@ void render_current_block() {
     if(current_piece.type == BLOCK_VOID) return;
 
     const rotation_state_t rotation = get_rotation_state(current_piece.type, current_piece.rotation_state);
+
+    block_type_t to_draw = current_piece.type;
+    if (current_piece.subtype != BLOCK_VOID) to_draw = current_piece.subtype;
+    else if (current_piece.is_bone) to_draw = BLOCK_BONE;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
-                render_raw_block(current_piece.x + i + ((big_mode || big_piece) ? i : 0), current_piece.y + j + ((big_mode || big_piece) ? j : 0) - 3, active_piece_is_bone ? BLOCK_BONE : current_piece.type, current_piece.lock_status, current_piece.lock_param, false, false, false, false, 1);
+                render_raw_block(current_piece.x + i + (current_piece.is_big ? i : 0), current_piece.y + j + (current_piece.is_big ? j : 0) - 3, to_draw, current_piece.lock_status, current_piece.lock_param, false, false, false, false, 1, current_piece.is_big);
             }
         }
     }
@@ -1809,10 +1929,13 @@ void render_tls() {
     if (active.y == current_piece.y) return;
 
     rotation_state_t rotation = get_rotation_state(current_piece.type, current_piece.rotation_state);
+    block_type_t to_draw = current_piece.type;
+    if (current_piece.subtype != BLOCK_VOID) to_draw = current_piece.subtype;
+    else if (current_piece.is_bone) to_draw = BLOCK_BONE;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (rotation[4*j + i] != ' ') {
-                render_raw_block(active.x + i + ((big_mode || big_piece) ? i : 0), active.y + j + ((big_mode || big_piece) ? j : 0) - 3, active_piece_is_bone ? BLOCK_BONE : active.type, LOCK_GHOST, active.lock_param, false, false, false, false, 1);
+                render_raw_block(active.x + i + (current_piece.is_big ? i : 0), active.y + j + (current_piece.is_big ? j : 0) - 3, to_draw, LOCK_GHOST, active.lock_param, false, false, false, false, 1, current_piece.is_big);
             }
         }
     }
@@ -2005,10 +2128,13 @@ void render_game() {
     SDL_RenderFillRect(renderer, &dst);
 
     // Field border.
-    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetTextureColorModFloat(border_texture, 0.9f, 0.1f, 0.1f);
-    else SDL_SetTextureColorModFloat(border_texture, border_r, border_g, border_b);
+    if (game_state != STATE_PAUSED && game_state != STATE_BEGIN  && game_state != STATE_WAIT) SDL_SetTextureColorModFloat(atlas_texture, 0.9f, 0.1f, 0.1f);
+    else SDL_SetTextureColorModFloat(atlas_texture, border_r, border_g, border_b);
     dst = (SDL_FRect){.x = FIELD_X_OFFSET - 16, .y = FIELD_Y_OFFSET - 16, .w = 96.0f*2, .h = 176.0f*2};
-    SDL_RenderTexture(renderer, border_texture, NULL, &dst);
+    SDL_FRect src = texture_atlas[TEXTURE_FIELD];
+    SDL_RenderTexture(renderer, atlas_texture, &src, &dst);
+    SDL_SetTextureColorModFloat(atlas_texture, 1, 1, 1);
+    SDL_SetTextureAlphaModFloat(atlas_texture, 1);
 
     // Background for next.
     if (get_setting_value(PREVIEWS_SETTING_IDX) > 0 || get_setting_value(HOLD_SETTING_IDX) > 0) {
@@ -2039,21 +2165,16 @@ void render_game() {
     }
 
     // Next/hold text.
-    float w = 0, h = 0;
-    SDL_GetTextureSize(next_hold_texture, &w, &h);
-    h /= 2.0f;
-    SDL_FRect src = {0};
-    src.w = w;
-    src.h = h;
+    src = texture_atlas[TEXTURE_NEXT];
     dst.x = FIELD_X_OFFSET + (3.0f * 16.0f);
     dst.y = (FIELD_Y_OFFSET - (4.0f * 16.0f) - 12);
-    dst.w = w;
-    dst.h = h;
+    dst.w = src.w;
+    dst.h = src.h;
     SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) SDL_RenderTexture(renderer, next_hold_texture, &src, &dst);
-    src.y += h;
+    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) SDL_RenderTexture(renderer, atlas_texture, &src, &dst);
+    src = texture_atlas[TEXTURE_HOLD];
     dst.x -= 3.5f*16.0f;
-    if (get_setting_value(HOLD_SETTING_IDX) > 0) SDL_RenderTexture(renderer, next_hold_texture, &src, &dst);
+    if (get_setting_value(HOLD_SETTING_IDX) > 0) SDL_RenderTexture(renderer, atlas_texture, &src, &dst);
 
     // Render the game.
     render_field();
@@ -2180,14 +2301,8 @@ void do_reset() {
     frozen_rows = 0;
     frozen_ignore_next = false;
     bones = false;
-    active_piece_is_bone = false;
-    held_piece_is_bone = false;
-    queue_is_bone[0] = false;
-    queue_is_bone[1] = false;
-    queue_is_bone[2] = false;
     ti_garbage_quota = false;
     big_mode = false;
-    big_piece = false;
     big_mode_half_columns = false;
     selective_gravity = false;
     disable_selective_gravity_after_clear = false;
@@ -2273,6 +2388,16 @@ bool state_machine_tick() {
             while ((current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) current_timing = current_timing+1;
             check_garbage();
             check_effect();
+            if (big_mode) {
+                next_piece[0].is_big = true;
+                next_piece[1].is_big = true;
+                next_piece[2].is_big = true;
+            }
+            if (bones) {
+                next_piece[0].is_bone = true;
+                next_piece[1].is_bone = true;
+                next_piece[2].is_bone = true;
+            }
             for (int i = 0; i < SETTINGS_COUNT; ++i) locked_settings[i] = settings_values[i];
             calculate_mode_hash();
         }
@@ -2400,20 +2525,15 @@ bool state_machine_tick() {
             wipe_clears();
             game_state_ctr = current_timing->clear;
             game_state = STATE_CLEAR;
-            big_piece = next_big_piece;
-            next_big_piece = false;
         } else {
             game_state = STATE_ARE;
             game_state_ctr = current_timing->are - 3;
-            big_piece = next_big_piece;
-            next_big_piece = false;
         }
     } else if (game_state == STATE_CLEAR) {
         update_details();
         game_state_ctr--;
         if (game_state_ctr > 0) return true;
-        play_sound(&linecollapse_sound);
-        collapse_clears();
+        collapse_clears(true);
         game_state = STATE_ARE;
         game_state_ctr = current_timing->line_are - 3;
     } else if (game_state == STATE_GAMEOVER) {
@@ -2513,10 +2633,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetWindowHitTest(window, window_hit_test, NULL);
 
     // Load the image for a block.
-    block_texture = load_image("data/block.png", block, sizeof block);
-    bone_texture = load_image("data/bone.png", bone, sizeof bone);
-    border_texture = load_image("data/border.png", border, sizeof border);
-    next_hold_texture = load_image("data/next_hold.png", next_hold, sizeof next_hold);
+    atlas_texture = load_image("data/atlas.png", atlas, sizeof atlas);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
