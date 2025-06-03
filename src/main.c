@@ -61,7 +61,7 @@ bool in_roll = false;
 bool can_hold = true;
 int in_roll_remaining = 0;
 float volume = 1.0f;
-int garbage_ctr = 0;
+int garbage_ctr = -1;
 section_music_t *last_section = NULL;
 game_details_t game_details = {0};
 int32_t time_spent_at_level[0xFFFF] = {0};
@@ -87,7 +87,7 @@ bool item_mode = false;
 int items = 0;
 int item_bag[32] = {0};
 int item_hist[2] = {ITEM_NEGATE, ITEM_SHOTGUN};
-char effect_overlay[30] = {0};
+char effect_overlay[10][30] = {0};
 int effect_overlay_ctr = 0;
 int xray_ctr = 0;
 bool paused = false;
@@ -167,6 +167,20 @@ static int SDLCALL compare_int(const void *a, const void *b) {
         return 1;
     } else {
         return 0;
+    }
+}
+
+void add_overlay(const char* what) {
+    if (effect_overlay_ctr == 0) {
+        SDL_memset(effect_overlay, 0, 10*30);
+    }
+
+    for (int i = 0; i < 10; ++i) {
+        if (effect_overlay[i][0] == 0) {
+            SDL_snprintf(effect_overlay[i], sizeof(effect_overlay[i])-1, what);
+            effect_overlay_ctr = 120;
+            break;
+        }
     }
 }
 
@@ -271,17 +285,18 @@ void play_sound(const sound_t *sound) {
 
 void check_garbage() {
     if (current_timing->garbage == 0) {
-        garbage_ctr = 0;
+        garbage_ctr = -1;
         return;
+    } else {
+        if (garbage_ctr >= 0) return;
+        garbage_ctr = current_timing->garbage;
+        if (garbage_ctr < 0) garbage_ctr = -garbage_ctr;
+        garbage_ctr--;
     }
-
-    if (garbage_ctr != 0) return;
-    garbage_ctr = current_timing->garbage;
-    if (garbage_ctr < 0) garbage_ctr = -garbage_ctr;
-    garbage_ctr--;
 }
 
 void add_garbage() {
+    garbage_ctr--;
     if (item_mode) {
         spawn_random_effect();
         check_garbage();
@@ -316,6 +331,7 @@ void add_garbage() {
 
     block_t garbage = {
         .type = bones ? BLOCK_BONE : BLOCK_X,
+        .subtype = BLOCK_VOID,
         .lock_status = LOCK_LOCKED,
         .lock_param = 0,
         .locked_at = game_details.total_frames,
@@ -683,7 +699,7 @@ void increment_level_line_clear(int lines) {
         previous_clears = 0;
 
         if (current_timing->garbage != 0) {
-            if (garbage_ctr == 0) add_garbage();
+            if (garbage_ctr <= 0) add_garbage();
             else garbage_ctr--;
         }
         return;
@@ -1071,9 +1087,7 @@ int get_first_occupied_row() {
 }
 
 void do_shotgun() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Shotgun!");
-    effect_overlay_ctr = 120;
+    add_overlay("Shotgun!");
 
     int block_cnt = 0;
     for (int x = 0; x < 10; ++x) {
@@ -1092,6 +1106,7 @@ void do_shotgun() {
         while (y >= 24) y = (int)(uint8_t)xoroshiro_next() % 32;
         if (field[x][y].type != BLOCK_VOID) {
             field[x][y].type = BLOCK_VOID;
+            field[x][y].subtype = BLOCK_VOID;
             block_cnt--;
         }
     }
@@ -1117,9 +1132,7 @@ static int SDLCALL compare_laser(const void *a, const void *b) {
 }
 
 void do_laser() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Laser!");
-    effect_overlay_ctr = 120;
+    add_overlay("Laser!");
     laser_t data[10] = {
         {(uint16_t)xoroshiro_next(), 0},
         {(uint16_t)xoroshiro_next(), 1},
@@ -1151,17 +1164,20 @@ void do_laser() {
 }
 
 void do_negate() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Negate Field");
-    effect_overlay_ctr = 120;
+    add_overlay("Negate Field");
     int first_occupied = get_first_occupied_row();
 
     if (first_occupied == -1) return;
 
     for (int x = 0; x < 10; ++x) {
         for (int y = first_occupied; y < 24; ++y) {
-            if (field[x][y].type != BLOCK_VOID) field[x][y].type = BLOCK_VOID;
-            else field[x][y].type = BLOCK_X;
+            if (field[x][y].type != BLOCK_VOID) {
+                field[x][y].type = BLOCK_VOID;
+                field[x][y].subtype = BLOCK_VOID;
+            } else {
+                field[x][y].type = BLOCK_X;
+                field[x][y].subtype = BLOCK_VOID;
+            }
         }
     }
 }
@@ -1292,6 +1308,7 @@ void wipe_clears() {
                 should_not_drop = true;
             } else {
                 field[x][clears[i]].type = BLOCK_VOID;
+                field[x][clears[i]].subtype = BLOCK_VOID;
             }
         }
         if (should_not_drop) clears[i] = -1;
@@ -1309,7 +1326,6 @@ void collapse_clears(bool sound) {
     }
     SDL_qsort(clears, 24, sizeof(int), compare_int);
 
-    int collapsed = 0;
     for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) continue;
         for (int j = clears[i]; j > 0; j--) {
@@ -1324,19 +1340,18 @@ void collapse_clears(bool sound) {
             field[8][j] = field[8][j-1];
             field[9][j] = field[9][j-1];
         }
-        field[0][0].type = BLOCK_VOID;
-        field[1][0].type = BLOCK_VOID;
-        field[2][0].type = BLOCK_VOID;
-        field[3][0].type = BLOCK_VOID;
-        field[4][0].type = BLOCK_VOID;
-        field[5][0].type = BLOCK_VOID;
-        field[6][0].type = BLOCK_VOID;
-        field[7][0].type = BLOCK_VOID;
-        field[8][0].type = BLOCK_VOID;
-        field[9][0].type = BLOCK_VOID;
-        collapsed++;
+        field[0][0] = (block_t){0};
+        field[1][0] = (block_t){0};
+        field[2][0] = (block_t){0};
+        field[3][0] = (block_t){0};
+        field[4][0] = (block_t){0};
+        field[5][0] = (block_t){0};
+        field[6][0] = (block_t){0};
+        field[7][0] = (block_t){0};
+        field[8][0] = (block_t){0};
+        field[9][0] = (block_t){0};
     }
-    if (collapsed > 0 && sound) play_sound(&linecollapse_sound);
+    play_sound(&linecollapse_sound);
     lines_cleared = 0;
 }
 
@@ -1348,9 +1363,7 @@ bool is_in_cleared_lines_list(int line) {
 }
 
 void do_del_lower() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Del Lower");
-    effect_overlay_ctr = 120;
+    add_overlay("Del Lower");
     int first_occupied = get_first_occupied_row();
     if (first_occupied == -1) return;
     if (lines_cleared == 0) {
@@ -1374,9 +1387,7 @@ void do_del_lower() {
 }
 
 void do_del_upper() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Del Upper");
-    effect_overlay_ctr = 120;
+    add_overlay("Del Upper");
     int first_occupied = get_first_occupied_row();
     if (first_occupied == -1) return;
     if (lines_cleared == 0) {
@@ -1400,9 +1411,7 @@ void do_del_upper() {
 }
 
 void do_del_even() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Del Even");
-    effect_overlay_ctr = 120;
+    add_overlay("Del Even");
     if (lines_cleared == 0) {
         for (int i = 0; i < 24; ++i) clears[i] = -1;
         for (int i = 0; i < 12; ++i) clears[i] = i*2;
@@ -1424,9 +1433,7 @@ void do_del_even() {
 }
 
 void do_push_left() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Push Left");
-    effect_overlay_ctr = 120;
+    add_overlay("Push Left");
     for (int y = 0; y < 24; ++y) {
         int left_most_taken = 0;
         for (int x = 0; x < 10; ++x) {
@@ -1443,9 +1450,7 @@ void do_push_left() {
 }
 
 void do_push_right() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Push Right");
-    effect_overlay_ctr = 120;
+    add_overlay("Push Right");
     for (int y = 0; y < 24; ++y) {
         int right_most_taken = 9;
         for (int x = 9; x >= 0; --x) {
@@ -1462,9 +1467,7 @@ void do_push_right() {
 }
 
 void do_push_down() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Push Down");
-    effect_overlay_ctr = 120;
+    add_overlay("Push Down");
     for (int x = 0; x < 10; ++x) {
         int bottom_most_taken = 23;
         for (int y = 23; y >= 0; --y) {
@@ -1482,9 +1485,7 @@ void do_push_down() {
 }
 
 void do_180() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Field 180");
-    effect_overlay_ctr = 120;
+    add_overlay("Field 180");
     int first_occupied = get_first_occupied_row();
     if (first_occupied == -1) return;
 
@@ -1512,45 +1513,33 @@ void do_180() {
 }
 
 void do_big_block() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Big Block!");
-    effect_overlay_ctr = 120;
+    add_overlay("Big Block!");
     next_piece[0].is_big = true;
 }
 
 void do_antigravity() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Antigravity!");
-    effect_overlay_ctr = 120;
+    add_overlay("Antigravity!");
     selective_gravity_by_item = true;
     disable_selective_gravity_after_clear = true;
 }
 
 void do_hard_block() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Hard Block!");
-    effect_overlay_ctr = 120;
+    add_overlay("Hard Block!");
     next_piece[0].subtype = BLOCK_HARD;
 }
 
 void do_heavy_block() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Heavy Block!");
-    effect_overlay_ctr = 120;
+    add_overlay("Heavy Block!");
     next_piece[0].is_heavy = true;
 }
 
 void do_xray() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "X-RAY");
-    effect_overlay_ctr = 120;
+    add_overlay("X-RAY");
     xray_ctr = 7;
 }
 
 void do_roll_block() {
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
-    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Rolling Block!");
-    effect_overlay_ctr = 120;
+    add_overlay("Rolling Block!");
     next_piece[0].is_rolling = true;
     next_piece[1].is_rolling = true;
     next_piece[2].is_rolling = true;
@@ -1889,7 +1878,10 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             dest.y -= 24.0f;
             dest.w = 8.0f;
             dest.h = 8.0f;
-            if (!can_hold) src = texture_atlas[BLOCK_X];
+            if (!can_hold) {
+                mod = 0.3f;
+                moda = 0.3f;
+            }
             break;
         default:
             return;
@@ -2365,13 +2357,15 @@ void render_game() {
         effect_overlay_ctr--;
 
         SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-        size_t length = (SDL_strlen(effect_overlay) / 2) * 8;
-
-        SDL_RenderDebugText(renderer, FIELD_X_OFFSET + (5*16) - length, FIELD_Y_OFFSET+120.0f, effect_overlay);
+        for (int i = 0; i < 10; ++i) {
+            size_t length = (SDL_strlen(effect_overlay[i]) / 2) * 8;
+            if (length == 0) continue;
+            SDL_RenderDebugText(renderer, FIELD_X_OFFSET + (5*16) - length, FIELD_Y_OFFSET+80.0f+(i*10.0f), effect_overlay[i]);
+        }
     }
 
     // Garbage / G?
-    dst.x = FIELD_X_OFFSET + 11*16;
+    dst.x = FIELD_X_OFFSET + 10*16 + 12;
     dst.y = FIELD_Y_OFFSET;
     dst.w = 7;
     dst.h = 20*16;
@@ -2386,17 +2380,18 @@ void render_game() {
     float total = dst.h;
     float fraction = 0;
 
-    if (current_timing->garbage != 0) fraction = ((float)current_timing->garbage - (float)garbage_ctr - 1) / (float)current_timing->garbage;
+    if (current_timing->garbage != 0) fraction = ((float)current_timing->garbage - (float)garbage_ctr - 1) / ((float)current_timing->garbage - 1);
     else fraction = (float)get_gravity() / 5120.0f;
     if (fraction > 1) fraction = 1;
+    if (fraction < 0) fraction = 0;
 
     dst.y += (1-fraction) * total;
     dst.h = fraction * total;
     if (((current_timing->garbage == 0 && get_gravity() >= 5120) || (current_timing->garbage != 0 && garbage_ctr == 0)) && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, TRANSPARENCY ? (FIELD_TRANSPARENCY * 255) : 255);
     else SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
     SDL_RenderFillRect(renderer, &dst);
-    dst.y -= (1-fraction) * total;
 
+    dst.y = FIELD_Y_OFFSET + 1;
     dst.x += 3;
     fraction = (float)(level % 100) / 100.0f;
     dst.y += (1-fraction) * total;
@@ -2508,6 +2503,7 @@ void do_reset() {
     SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
     effect_overlay_ctr = 0;
     xray_ctr = 0;
+    garbage_ctr = -1;
 }
 
 void update_details() {
