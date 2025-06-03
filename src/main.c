@@ -443,7 +443,7 @@ int generate_random_effect() {
     item_hist[0] = item_hist[1];
     item_hist[1] = result;
     item_bag[selection] = INT32_MAX;
-    SDL_qsort(item_bag, 27, sizeof(int), compare_int);
+    SDL_qsort(item_bag, 32, sizeof(int), compare_int);
 
     items--;
     if (items == 0) fill_item_bag();
