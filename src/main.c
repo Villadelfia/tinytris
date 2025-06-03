@@ -1809,7 +1809,10 @@ void generate_first_piece() {
 
 void gray_line(const int row) {
     for (int i = 0; i < 10; i++) {
-        if (field[i][row].type != BLOCK_VOID) field[i][row].type = BLOCK_X;
+        if (field[i][row].type != BLOCK_VOID) {
+            field[i][row].type = BLOCK_X;
+            field[i][row].subtype = BLOCK_VOID;
+        }
     }
 }
 
