@@ -2367,6 +2367,41 @@ void render_game() {
         SDL_RenderDebugText(renderer, FIELD_X_OFFSET + (5*16) - length, FIELD_Y_OFFSET+120.0f, effect_overlay);
     }
 
+    // Garbage / G?
+    dst.x = FIELD_X_OFFSET + 11*16;
+    dst.y = FIELD_Y_OFFSET;
+    dst.w = 7;
+    dst.h = 20*16;
+    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
+    SDL_RenderFillRect(renderer, &dst);
+
+    dst.x += 1;
+    dst.y += 1;
+    dst.w = 2;
+    dst.h -= 2;
+
+    float total = dst.h;
+    float fraction = 0;
+
+    if (current_timing->garbage != 0) fraction = ((float)current_timing->garbage - (float)garbage_ctr - 1) / (float)current_timing->garbage;
+    else fraction = (float)get_gravity() / 5120.0f;
+    if (fraction > 1) fraction = 1;
+
+    dst.y += (1-fraction) * total;
+    dst.h = fraction * total;
+    if (((current_timing->garbage == 0 && get_gravity() >= 5120) || (current_timing->garbage != 0 && garbage_ctr == 0)) && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, TRANSPARENCY ? (FIELD_TRANSPARENCY * 255) : 255);
+    else SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
+    SDL_RenderFillRect(renderer, &dst);
+    dst.y -= (1-fraction) * total;
+
+    dst.x += 3;
+    fraction = (float)(level % 100) / 100.0f;
+    dst.y += (1-fraction) * total;
+    dst.h = fraction * total;
+    if (section_locked && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, TRANSPARENCY ? (FIELD_TRANSPARENCY * 255) : 255);
+    else SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
+    SDL_RenderFillRect(renderer, &dst);
+
     // Title screen.
     if (game_state == STATE_WAIT) {
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
