@@ -258,16 +258,12 @@ char* tgm2_plus_sequence[] = {
     "XXX   XXXX"
 };
 
-size_t effects_list_len = 30;
-effect_def_t effects_list[30] = {
+size_t effects_list_len = 32;
+effect_def_t effects_list[32] = {
     {"TORIKAN_SCOPE_SECTION", TORIKAN_SCOPE_MASK},
-    //{"TORIKAN_SCOPE_GAME", 0},
     {"TORIKAN_EFFECT_GAMEOVER", TORIKAN_EFFECT_MASK},
-    //{"TORIKAN_EFFECT_ROLL", 0},
     {"GARBAGE_TGM2P_SEQUENCE", TGM2_PLUS_SEQUENCE_MASK},
-    //{"GARBAGE_COPY_BOTTOM", 0},
     {"GARBAGE_CLEARS_ROLLBACK", TI_GARBAGE_QUOTA},
-    //{"GARBAGE_CLEARS_STALL", 0},
     {"VISIBILITY_RESET_ALL", RESET_VISIBILITY_MASK},
     {"VISIBILITY_RESET_VISIBLE", RESET_VISIBILITY_TIMER_MASK},
     {"VISIBILITY_HINT_ONCE", INVISIBILITY_HINT_ONCE_MASK},
@@ -292,6 +288,8 @@ effect_def_t effects_list[30] = {
     {"HARD_BLOCK", HARD_BLOCK_MASK},
     {"ITEM_MODE", ITEM_MODE_MASK},
     {"ROLL_BLOCK", ROLL_BLOCK_MASK},
+    {"HEAVY_BLOCK", HEAVY_BLOCK_MASK},
+    {"FIELD_XRAY", XRAY_MASK},
     {"RANDOM_EFFECT", RANDOM_EFFECT_MASK},
     {"EFFECT_AS_ITEM", EFFECT_AS_ITEM_MASK}
 };
@@ -322,6 +320,8 @@ SDL_FRect texture_atlas[] = {
     {32, 224, 32, 32}, // ITEM_BIG_BLOCK
     {64, 224, 32, 32}, // ITEM_ANTIGRAVITY
     {96, 224, 32, 32}, // ITEM_ROLL
+    {128, 224, 32, 32}, // ITEM_HEAVY
+    {160, 224, 32, 32}, // ITEM_XRAY
     {0,  0,   25, 7},  // TEXTURE_NEXT
     {0,  7,   25, 7},  // TEXTURE_HOLD
     {96, 0,   96, 176} // TEXTURE_FIELD

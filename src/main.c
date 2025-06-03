@@ -89,6 +89,7 @@ int item_bag[32] = {0};
 int item_hist[2] = {ITEM_NEGATE, ITEM_SHOTGUN};
 char effect_overlay[30] = {0};
 int effect_overlay_ctr = 0;
+int xray_ctr = 0;
 bool paused = false;
 uint64_t id = 0;
 
@@ -153,6 +154,8 @@ void do_random_effect();
 void spawn_random_effect();
 void do_hard_block();
 void do_roll_block();
+void do_xray();
+void do_heavy_block();
 
 static int SDLCALL compare_int(const void *a, const void *b) {
     const int A = *(const int *)a;
@@ -370,30 +373,32 @@ int32_t time_spent(int32_t from, int32_t to) {
 }
 
 void fill_item_bag() {
-    items = 27;
+    items = 32;
 
     item_bag[0] = ITEM_SHOTGUN;
 
     item_bag[1] = ITEM_ROLL;
     item_bag[2] = ITEM_ROLL;
-    item_bag[3] = ITEM_ROLL;
-    item_bag[4] = ITEM_ROLL;
-    item_bag[5] = ITEM_ROLL;
+
+    item_bag[3] = ITEM_XRAY;
+    item_bag[4] = ITEM_XRAY;
+    item_bag[5] = ITEM_XRAY;
 
     item_bag[6] = ITEM_LASER;
     item_bag[7] = ITEM_LASER;
     item_bag[8] = ITEM_LASER;
-    item_bag[9] = ITEM_LASER;
-    item_bag[10] = ITEM_LASER;
 
-    item_bag[11] = ITEM_180;
+    item_bag[9] = ITEM_180;
 
-    item_bag[12] = ITEM_NEGATE;
+    item_bag[10] = ITEM_NEGATE;
 
+    item_bag[11] = ITEM_ANTIGRAVITY;
+    item_bag[12] = ITEM_ANTIGRAVITY;
     item_bag[13] = ITEM_ANTIGRAVITY;
-    item_bag[14] = ITEM_ANTIGRAVITY;
-    item_bag[15] = ITEM_ANTIGRAVITY;
-    item_bag[16] = ITEM_ANTIGRAVITY;
+
+    item_bag[14] = ITEM_HEAVY;
+    item_bag[15] = ITEM_HEAVY;
+    item_bag[16] = ITEM_HEAVY;
 
     item_bag[17] = ITEM_BIG_BLOCK;
     item_bag[18] = ITEM_BIG_BLOCK;
@@ -467,6 +472,8 @@ void do_random_effect() {
     if (result == ITEM_HARD) do_hard_block();
     if (result == ITEM_ROLL) do_roll_block();
     if (result == ITEM_ANTIGRAVITY) do_antigravity();
+    if (result == ITEM_HEAVY) do_heavy_block();
+    if (result == ITEM_XRAY) do_xray();
 }
 
 void check_effect() {
@@ -490,6 +497,8 @@ void check_effect() {
     bool should_do_push_right = (effect & FIELD_PUSH_RIGHT_MASK) != 0;
     bool should_do_push_down = (effect & FIELD_PUSH_DOWN_MASK) != 0;
     bool should_do_180 = (effect & FIELD_180_MASK) != 0;
+    bool should_do_heavy = (effect & HEAVY_BLOCK_MASK) != 0;
+    bool should_do_xray = (effect & XRAY_MASK) != 0;
     selective_gravity = (effect & SELECTIVE_GRAVITY_MASK) != 0;
     if (selective_gravity) {
         if ((effect & EFFECT_AS_ITEM_MASK) != 0) {
@@ -616,6 +625,14 @@ void check_effect() {
     if (should_do_180) {
         if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_180;
         else do_180();
+    }
+    if (should_do_heavy) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_HEAVY;
+        else do_heavy_block();
+    }
+    if (should_do_xray) {
+        if ((effect & EFFECT_AS_ITEM_MASK) != 0) next_subtype = ITEM_XRAY;
+        else do_xray();
     }
 
     if (invisibility_hint_once) {
@@ -1118,20 +1135,22 @@ void wipe_subtype_by_id(uint64_t block_id) {
 void check_clears() {
     for (int i = 0; i < 24; ++i) clears[i] = -1;
 
-    bool should_do_hard_block = false;
-    bool should_do_shotgun = false;
-    bool should_do_laser = false;
-    bool should_do_negate = false;
-    bool should_do_del_upper = false;
-    bool should_do_del_lower = false;
-    bool should_do_del_even = false;
-    bool should_do_push_left = false;
-    bool should_do_push_right = false;
-    bool should_do_push_down = false;
-    bool should_do_180 = false;
-    bool should_do_big_block = false;
-    bool should_do_antigravity = false;
-    bool should_do_roll_block = false;
+    int should_do_hard_block = -1;
+    int should_do_shotgun = -1;
+    int should_do_laser = -1;
+    int should_do_negate = -1;
+    int should_do_del_upper = -1;
+    int should_do_del_lower = -1;
+    int should_do_del_even = -1;
+    int should_do_push_left = -1;
+    int should_do_push_right = -1;
+    int should_do_push_down = -1;
+    int should_do_180 = -1;
+    int should_do_big_block = -1;
+    int should_do_antigravity = -1;
+    int should_do_roll_block = -1;
+    int should_do_heavy_block = -1;
+    int should_do_xray = -1;
 
     int ct = 0;
     for (int i = 0; i < (24 - (frozen_ignore_next ? 0 : frozen_rows)); i++) {
@@ -1150,20 +1169,22 @@ void check_clears() {
                 if (field[x][i].subtype != BLOCK_VOID && field[x][i].subtype != BLOCK_HARD) {
                     block_type_t subtype = field[x][i].subtype;
 
-                    if (subtype == ITEM_HARD) should_do_hard_block = true;
-                    if (subtype == ITEM_SHOTGUN) should_do_shotgun = true;
-                    if (subtype == ITEM_LASER) should_do_laser = true;
-                    if (subtype == ITEM_NEGATE) should_do_negate = true;
-                    if (subtype == ITEM_DEL_UPPER) should_do_del_upper = true;
-                    if (subtype == ITEM_DEL_LOWER) should_do_del_lower = true;
-                    if (subtype == ITEM_DEL_EVEN) should_do_del_even = true;
-                    if (subtype == ITEM_PUSH_LEFT) should_do_push_left = true;
-                    if (subtype == ITEM_PUSH_RIGHT) should_do_push_right = true;
-                    if (subtype == ITEM_PUSH_DOWN) should_do_push_down = true;
-                    if (subtype == ITEM_180) should_do_180 = true;
-                    if (subtype == ITEM_BIG_BLOCK) should_do_big_block = true;
-                    if (subtype == ITEM_ANTIGRAVITY) should_do_antigravity = true;
-                    if (subtype == ITEM_ROLL) should_do_roll_block = true;
+                    if (subtype == ITEM_HARD && should_do_hard_block == -1) should_do_hard_block = (10*i)+x;
+                    if (subtype == ITEM_SHOTGUN && should_do_shotgun == -1) should_do_shotgun = (10*i)+x;
+                    if (subtype == ITEM_LASER && should_do_laser == -1) should_do_laser = (10*i)+x;
+                    if (subtype == ITEM_NEGATE && should_do_negate == -1) should_do_negate = (10*i)+x;
+                    if (subtype == ITEM_DEL_UPPER && should_do_del_upper == -1) should_do_del_upper = (10*i)+x;
+                    if (subtype == ITEM_DEL_LOWER && should_do_del_lower == -1) should_do_del_lower = (10*i)+x;
+                    if (subtype == ITEM_DEL_EVEN && should_do_del_even == -1) should_do_del_even = (10*i)+x;
+                    if (subtype == ITEM_PUSH_LEFT && should_do_push_left == -1) should_do_push_left = (10*i)+x;
+                    if (subtype == ITEM_PUSH_RIGHT && should_do_push_right == -1) should_do_push_right = (10*i)+x;
+                    if (subtype == ITEM_PUSH_DOWN && should_do_push_down == -1) should_do_push_down = (10*i)+x;
+                    if (subtype == ITEM_180 && should_do_180 == -1) should_do_180 = (10*i)+x;
+                    if (subtype == ITEM_BIG_BLOCK && should_do_big_block == -1) should_do_big_block = (10*i)+x;
+                    if (subtype == ITEM_ANTIGRAVITY && should_do_antigravity == -1) should_do_antigravity = (10*i)+x;
+                    if (subtype == ITEM_ROLL && should_do_roll_block == -1) should_do_roll_block = (10*i)+x;
+                    if (subtype == ITEM_HEAVY && should_do_heavy_block == -1) should_do_heavy_block = (10*i)+x;
+                    if (subtype == ITEM_XRAY && should_do_xray == -1) should_do_xray = (10*i)+x;
 
                     wipe_subtype_by_id(field[x][i].id);
                 }
@@ -1174,20 +1195,24 @@ void check_clears() {
 
     lines_cleared = ct;
 
-    if (should_do_hard_block) do_hard_block();
-    if (should_do_roll_block) do_roll_block();
-    if (should_do_shotgun) do_shotgun();
-    if (should_do_laser) do_laser();
-    if (should_do_negate) do_negate();
-    if (should_do_del_upper) do_del_upper();
-    if (should_do_del_lower) do_del_lower();
-    if (should_do_del_even) do_del_even();
-    if (should_do_push_left) do_push_left();
-    if (should_do_push_right) do_push_right();
-    if (should_do_push_down) do_push_down();
-    if (should_do_180) do_180();
-    if (should_do_big_block) do_big_block();
-    if (should_do_antigravity) do_antigravity();
+    for (int i = 0; i < 24*10; ++i) {
+        if (should_do_hard_block == i) do_hard_block();
+        if (should_do_roll_block == i) do_roll_block();
+        if (should_do_big_block == i) do_big_block();
+        if (should_do_antigravity == i) do_antigravity();
+        if (should_do_shotgun == i) do_shotgun();
+        if (should_do_laser == i) do_laser();
+        if (should_do_negate == i) do_negate();
+        if (should_do_del_lower == i) do_del_lower();
+        if (should_do_del_upper == i) do_del_upper();
+        if (should_do_del_even == i) do_del_even();
+        if (should_do_push_left == i) do_push_left();
+        if (should_do_push_right == i) do_push_right();
+        if (should_do_push_down == i) do_push_down();
+        if (should_do_180 == i) do_180();
+        if (should_do_xray == i) do_xray();
+        if (should_do_heavy_block == i) do_heavy_block();
+    }
 
     if (frozen_rows > 0 && ct == 0 && !frozen_ignore_next) {
         for (int i = 24 - frozen_rows; i < 24; i++) {
@@ -1466,6 +1491,20 @@ void do_hard_block() {
     next_piece[0].subtype = BLOCK_HARD;
 }
 
+void do_heavy_block() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Heavy Block!");
+    effect_overlay_ctr = 120;
+    next_piece[0].is_heavy = true;
+}
+
+void do_xray() {
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+    SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "X-RAY");
+    effect_overlay_ctr = 120;
+    xray_ctr = 7;
+}
+
 void do_roll_block() {
     SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
     SDL_snprintf(effect_overlay, sizeof(effect_overlay)-1, "Rolling Block!");
@@ -1477,6 +1516,10 @@ void do_roll_block() {
 
 int get_gravity() {
     if (get_setting_value(GRAVITY_SETTING_IDX) == 1) return 5120;
+    if (current_piece.is_heavy) {
+        if (current_timing->g < 128) return current_timing->g + 128;
+        return current_timing->g * 2;
+    }
     return current_timing->g;
 }
 
@@ -1560,6 +1603,7 @@ live_block_t generate_valid_piece() {
     ret.is_bone = bones;
     ret.is_big = big_mode || next_big_piece;
     ret.is_rolling = false;
+    ret.is_heavy = false;
     ret.subtype = next_subtype;
     next_subtype = BLOCK_VOID;
     next_big_piece = false;
@@ -1576,6 +1620,7 @@ void do_hold(bool ihs) {
         held_piece.subtype = current_piece.subtype;
         held_piece.is_bone = current_piece.is_bone;
         held_piece.is_big = current_piece.is_big;
+        held_piece.is_heavy = current_piece.is_heavy;
         held_piece.is_rolling = current_piece.is_rolling;
         current_piece = (live_block_t){0};
         current_piece = next_piece[0];
@@ -1740,6 +1785,13 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
     if (col == 0) voidToLeft = false;
     if (col == 9) voidToRight = false;
     if (row == 19) voidBelow = false;
+
+    if (xray_ctr > 0) {
+        if (lockStatus == LOCK_GHOST) return;
+        if (lockStatus == LOCK_LOCKED || lockStatus == LOCK_FLASH) {
+            if (game_details.total_frames % 30 != col) return;
+        }
+    }
 
     float mod = 1.0f;
     float moda = 1.0f;
@@ -2375,6 +2427,7 @@ void do_reset() {
     item_mode = false;
     SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
     effect_overlay_ctr = 0;
+    xray_ctr = 0;
 }
 
 void update_details() {
@@ -2502,6 +2555,7 @@ bool state_machine_tick() {
             } else {
                 game_state = STATE_ACTIVE;
                 game_state_ctr = 0;
+                if (xray_ctr > 0) xray_ctr--;
             }
         }
     } else if (game_state == STATE_ACTIVE) {
@@ -2558,7 +2612,7 @@ bool state_machine_tick() {
                     accumulated_g -= 256;
                 }
             }
-            if (start_y != current_piece.y && !(current_piece.floor_kicked && current_piece.lock_delay == 0)) {
+            if (start_y != current_piece.y && !(current_piece.floor_kicked && current_piece.lock_delay == 0) && !current_piece.is_heavy) {
                 current_piece.lock_param = 1.0f;
                 current_piece.lock_delay = current_timing->lock;
             }
@@ -2568,6 +2622,7 @@ bool state_machine_tick() {
         if (piece_grounded()) {
             if (!was_grounded || start_y != current_piece.y) play_sound(&pieceland_sound);
             current_piece.lock_delay--;
+            if (current_piece.is_heavy) current_piece.lock_delay--;
             if (current_piece.lock_delay < 0) current_piece.lock_delay = 0;
             // Soft lock.
             if (IS_HELD(button_d_held) || IS_HELD(button_hard_drop_held)) current_piece.lock_delay = 0;

@@ -29,6 +29,8 @@ typedef enum {
     ITEM_BIG_BLOCK,
     ITEM_ANTIGRAVITY,
     ITEM_ROLL,
+    ITEM_HEAVY,
+    ITEM_XRAY,
     BLOCK_TYPE_CNT
 } block_type_t;
 
@@ -71,6 +73,7 @@ typedef struct {
     bool is_bone;
     bool is_big;
     bool is_rolling;
+    bool is_heavy;
 } live_block_t;
 
 typedef struct {
@@ -165,7 +168,8 @@ typedef struct {
 #define FIELD_180_MASK               (0x01000000)
 #define HARD_BLOCK_MASK              (0x02000000)
 #define ROLL_BLOCK_MASK              (0x04000000)
-
+#define HEAVY_BLOCK_MASK             (0x08000000)
+#define XRAY_MASK                    (0x10000000)
 #define EFFECT_AS_ITEM_MASK          (0x20000000)
 #define ITEM_MODE_MASK               (0x40000000)
 #define RANDOM_EFFECT_MASK           (0x80000000)
