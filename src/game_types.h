@@ -37,7 +37,8 @@ typedef enum {
 typedef enum {
     TEXTURE_NEXT = BLOCK_TYPE_CNT,
     TEXTURE_HOLD,
-    TEXTURE_FIELD
+    TEXTURE_FIELD,
+    TEXTURE_LOGO
 } texture_t;
 
 typedef enum {

@@ -324,5 +324,6 @@ SDL_FRect texture_atlas[] = {
     {160, 224, 32, 32}, // ITEM_XRAY
     {0,  0,   25, 7},  // TEXTURE_NEXT
     {0,  7,   25, 7},  // TEXTURE_HOLD
-    {96, 0,   96, 176} // TEXTURE_FIELD
+    {96, 0,   96, 176}, // TEXTURE_FIELD
+    {96, 176, 96, 22} // TEXTURE_LOGO
 };

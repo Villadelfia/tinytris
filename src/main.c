@@ -2474,6 +2474,17 @@ void render_game() {
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
         SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
 
+        src = texture_atlas[TEXTURE_LOGO];
+        dst = texture_atlas[TEXTURE_LOGO];
+        dst.x = FIELD_X_OFFSET + (5*16) - (dst.w/2);
+        dst.y = FIELD_Y_OFFSET + 21*16;
+        dst.w *= 3;
+        dst.h *= 3;
+        SDL_SetTextureColorModFloat(atlas_texture, 1, 1, 1);
+        SDL_SetTextureAlphaModFloat(atlas_texture, 0.3f);
+        SDL_RenderTexture(renderer, atlas_texture, &src, &dst);
+        SDL_SetTextureAlphaModFloat(atlas_texture, 1);
+
         y_offset = 12.0f;
         SDL_RenderDebugTextFormat(renderer, 80.0f, (FIELD_Y_OFFSET + (y_offset * 16.0f)) * 2 , "Press %s/%s to begin", SDL_GetScancodeName(BUTTON_START), SDL_GetGamepadStringForButton(GAMEPAD_START));
 
