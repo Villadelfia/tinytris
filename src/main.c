@@ -372,6 +372,7 @@ void add_garbage() {
             else field[i][23] = garbage;
         } else {
             if (field[i][23].type != BLOCK_VOID) field[i][23] = garbage;
+            else field[i][23] = empty;
         }
     }
 
@@ -562,7 +563,8 @@ void check_effect() {
         if (hit_torikan) {
             if (torikan_effect) {
                 // Gameover
-                current_piece.type = BLOCK_VOID;
+                live_block_t empty = {0};
+                current_piece = empty;
                 game_state = STATE_GAMEOVER;
                 game_state_ctr = 10 * 24 + 1;
                 play_sound(&gameover_sound);
@@ -922,32 +924,20 @@ void try_rotate(const int direction) {
     if (active.type == BLOCK_I) {
         if (get_setting_value(ROTATION_SETTING_IDX) == 0) return;
         if (touching_stack() && (active.rotation_state == 0 || active.rotation_state == 2)) {
-            // I -> right
-            active.x += 1;
-            if (piece_collides(active) == -1) {
-                current_piece.rotation_state = active.rotation_state;
-                current_piece.x += 1;
-                return;
-            }
-
-            // I -> 2right
-            active.x += 1;
-            if (piece_collides(active) == -1) {
-                current_piece.rotation_state = active.rotation_state;
-                current_piece.x += 2;
-                return;
-            }
-
-            // Try 3 and 4 for big mode.
             if (big_mode || current_piece.is_big) {
-                active.x += 1;
+                // Doubled for big mode.
+                // I -> right
+                active.x = current_piece.x + 2;
+                active.y = current_piece.y;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
-                    current_piece.x += 3;
+                    current_piece.x += 2;
                     return;
                 }
 
-                active.x += 1;
+                // I -> 2right
+                active.x = current_piece.x + 4;
+                active.y = current_piece.y;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
                     current_piece.x += 4;
@@ -955,68 +945,96 @@ void try_rotate(const int direction) {
                 }
             }
 
-            // I -> left
-            active.x = current_piece.x - 1;
-            if (piece_collides(active) == -1) {
-                current_piece.rotation_state = active.rotation_state;
-                current_piece.x -= 1;
+            if (!big_mode || big_mode_half_columns) {
+                // I -> right
+                active.x = current_piece.x + 1;
+                active.y = current_piece.y;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.x += 1;
+                    return;
+                }
+
+                // I -> 2right
+                active.x = current_piece.x + 2;
+                active.y = current_piece.y;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.x += 2;
+                    return;
+                }
             }
 
             if (big_mode || current_piece.is_big) {
-                active.x -= 1;
+                // Doubled for big mode.
+                // I -> left
+                active.x = current_piece.x - 2;
+                active.y = current_piece.y;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
                     current_piece.x -= 2;
                 }
             }
-        } else if (piece_grounded() && (active.rotation_state == 1 || active.rotation_state == 3)) {
-            // I -> up
-            active.y -= 1;
-            if (piece_collides(active) == -1) {
-                current_piece.rotation_state = active.rotation_state;
-                current_piece.y -= 1;
-                current_piece.floor_kicked = true;
-                return;
-            }
 
-            // I -> 2up
-            active.y -= 1;
-            if (piece_collides(active) == -1) {
-                current_piece.rotation_state = active.rotation_state;
-                current_piece.y -= 2;
-                current_piece.floor_kicked = true;
-            }
-
-            // Try 3 and 4 for big mode.
-            if (big_mode || current_piece.is_big) {
-                active.y -= 1;
+            if (!big_mode || big_mode_half_columns) {
+                // I -> left
+                active.x = current_piece.x - 1;
+                active.y = current_piece.y;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
-                    current_piece.y -= 3;
+                    current_piece.x -= 1;
+                }
+            }
+        } else if (piece_grounded() && (active.rotation_state == 1 || active.rotation_state == 3)) {
+            if (big_mode || current_piece.is_big) {
+                // Doubled for big mode.
+                // I -> up
+                active.x = current_piece.x;
+                active.y = current_piece.y - 2;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.y -= 2;
                     current_piece.floor_kicked = true;
                     return;
                 }
 
-                active.y -= 1;
+                // I -> 2up
+                active.x = current_piece.x;
+                active.y = current_piece.y - 4;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
                     current_piece.y -= 4;
                     current_piece.floor_kicked = true;
+                }
+            }
+
+            if (!big_mode || big_mode_half_columns) {
+                // I -> up
+                active.x = current_piece.x;
+                active.y = current_piece.y - 1;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.y -= 1;
+                    current_piece.floor_kicked = true;
                     return;
+                }
+
+                // I -> 2up
+                active.x = current_piece.x;
+                active.y = current_piece.y - 2;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.y -= 2;
+                    current_piece.floor_kicked = true;
                 }
             }
         }
     } else {
-        // right
-        active.x += 1;
-        if (piece_collides(active) == -1) {
-            current_piece.rotation_state = active.rotation_state;
-            current_piece.x += 1;
-            return;
-        }
-
         if (big_mode || current_piece.is_big) {
-            active.x += 1;
+            // Doubled for big mode.
+            // right
+            active.x = current_piece.x + 2;
+            active.y = current_piece.y;
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
                 current_piece.x += 2;
@@ -1024,38 +1042,59 @@ void try_rotate(const int direction) {
             }
         }
 
-        // left
-        active.x = current_piece.x - 1;
-        if (piece_collides(active) == -1) {
-            current_piece.rotation_state = active.rotation_state;
-            current_piece.x -= 1;
-            return;
+        if (!big_mode || big_mode_half_columns) {
+            // right
+            active.x = current_piece.x + 1;
+            active.y = current_piece.y;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.x += 1;
+                return;
+            }
         }
 
         if (big_mode || current_piece.is_big) {
-            active.x -= 1;
+            // Doubled for big mode.
+            // left
+            active.x = current_piece.x - 2;
+            active.y = current_piece.y;
             if (piece_collides(active) == -1) {
                 current_piece.rotation_state = active.rotation_state;
                 current_piece.x -= 2;
+                return;
+            }
+        }
+
+        if (!big_mode || big_mode_half_columns) {
+            // left
+            active.x = current_piece.x - 1;
+            active.y = current_piece.y;
+            if (piece_collides(active) == -1) {
+                current_piece.rotation_state = active.rotation_state;
+                current_piece.x -= 1;
+                return;
             }
         }
 
         // T -> up
         if (get_setting_value(ROTATION_SETTING_IDX) == 0) return;
         if (current_piece.type == BLOCK_T && piece_grounded()) {
-            active.x = current_piece.x;
-            active.y -= 1;
-            if (piece_collides(active) == -1) {
-                current_piece.rotation_state = active.rotation_state;
-                current_piece.y -= 1;
-                current_piece.floor_kicked = true;
-            }
-
             if (big_mode || current_piece.is_big) {
-                active.y -= 1;
+                active.x = current_piece.x;
+                active.y = current_piece.y - 2;
                 if (piece_collides(active) == -1) {
                     current_piece.rotation_state = active.rotation_state;
                     current_piece.y -= 2;
+                    current_piece.floor_kicked = true;
+                }
+            }
+
+            if (!big_mode || big_mode_half_columns) {
+                active.x = current_piece.x;
+                active.y = current_piece.y - 1;
+                if (piece_collides(active) == -1) {
+                    current_piece.rotation_state = active.rotation_state;
+                    current_piece.y -= 1;
                     current_piece.floor_kicked = true;
                 }
             }
@@ -1064,8 +1103,6 @@ void try_rotate(const int direction) {
 }
 
 int get_first_occupied_row() {
-    int first_occupied = -1;
-
     for (int i = 0; i < 24; ++i) {
         if (
             field[0][i].type != BLOCK_VOID ||
@@ -1078,12 +1115,11 @@ int get_first_occupied_row() {
             field[7][i].type != BLOCK_VOID ||
             field[8][i].type != BLOCK_VOID ||
             field[9][i].type != BLOCK_VOID) {
-            first_occupied = i;
-            break;
+            return i;
             }
     }
 
-    return first_occupied;
+    return -1;
 }
 
 void do_shotgun() {
@@ -1099,14 +1135,14 @@ void do_shotgun() {
     }
 
     block_cnt /= 6;
+    block_t empty = {0};
     while (block_cnt > 0) {
         int x = (int)(uint8_t)xoroshiro_next() % 16;
         int y = (int)(uint8_t)xoroshiro_next() % 32;
         while (x >= 10) x = (int)(uint8_t)xoroshiro_next() % 16;
         while (y >= 24) y = (int)(uint8_t)xoroshiro_next() % 32;
         if (field[x][y].type != BLOCK_VOID) {
-            field[x][y].type = BLOCK_VOID;
-            field[x][y].subtype = BLOCK_VOID;
+            field[x][y] = empty;
             block_cnt--;
         }
     }
@@ -1157,9 +1193,9 @@ void do_laser() {
     SDL_qsort(data, 10, sizeof(laser_t), compare_laser);
 
     int column = data[2].column;
+    block_t empty = {0};
     for (int y = 0; y < 24; ++y) {
-        field[column][y].type = BLOCK_VOID;
-        field[column][y].subtype = BLOCK_VOID;
+        field[column][y] = empty;
     }
 }
 
@@ -1169,15 +1205,21 @@ void do_negate() {
 
     if (first_occupied == -1) return;
 
+    block_t garbage = {
+        .type = bones ? BLOCK_BONE : BLOCK_X,
+        .subtype = BLOCK_VOID,
+        .lock_status = LOCK_LOCKED,
+        .lock_param = 0,
+        .locked_at = game_details.total_frames,
+        .fading = false,
+        .fade_state = 1.0f
+    };
+    block_t empty = {0};
+
     for (int x = 0; x < 10; ++x) {
         for (int y = first_occupied; y < 24; ++y) {
-            if (field[x][y].type != BLOCK_VOID) {
-                field[x][y].type = BLOCK_VOID;
-                field[x][y].subtype = BLOCK_VOID;
-            } else {
-                field[x][y].type = BLOCK_X;
-                field[x][y].subtype = BLOCK_VOID;
-            }
+            if (field[x][y].type != BLOCK_VOID) field[x][y] = empty;
+            else field[x][y] = garbage;
         }
     }
 }
@@ -1224,28 +1266,26 @@ void check_clears() {
             field[8][i].type != BLOCK_VOID &&
             field[9][i].type != BLOCK_VOID) {
             for (int x = 0; x < 10; ++x) {
-                if (field[x][i].subtype != BLOCK_VOID && field[x][i].subtype != BLOCK_HARD) {
-                    block_type_t subtype = field[x][i].subtype;
+                block_type_t subtype = field[x][i].subtype;
 
-                    if (subtype == ITEM_HARD && should_do_hard_block == -1) should_do_hard_block = (10*i)+x;
-                    if (subtype == ITEM_SHOTGUN && should_do_shotgun == -1) should_do_shotgun = (10*i)+x;
-                    if (subtype == ITEM_LASER && should_do_laser == -1) should_do_laser = (10*i)+x;
-                    if (subtype == ITEM_NEGATE && should_do_negate == -1) should_do_negate = (10*i)+x;
-                    if (subtype == ITEM_DEL_UPPER && should_do_del_upper == -1) should_do_del_upper = (10*i)+x;
-                    if (subtype == ITEM_DEL_LOWER && should_do_del_lower == -1) should_do_del_lower = (10*i)+x;
-                    if (subtype == ITEM_DEL_EVEN && should_do_del_even == -1) should_do_del_even = (10*i)+x;
-                    if (subtype == ITEM_PUSH_LEFT && should_do_push_left == -1) should_do_push_left = (10*i)+x;
-                    if (subtype == ITEM_PUSH_RIGHT && should_do_push_right == -1) should_do_push_right = (10*i)+x;
-                    if (subtype == ITEM_PUSH_DOWN && should_do_push_down == -1) should_do_push_down = (10*i)+x;
-                    if (subtype == ITEM_180 && should_do_180 == -1) should_do_180 = (10*i)+x;
-                    if (subtype == ITEM_BIG_BLOCK && should_do_big_block == -1) should_do_big_block = (10*i)+x;
-                    if (subtype == ITEM_ANTIGRAVITY && should_do_antigravity == -1) should_do_antigravity = (10*i)+x;
-                    if (subtype == ITEM_ROLL && should_do_roll_block == -1) should_do_roll_block = (10*i)+x;
-                    if (subtype == ITEM_HEAVY && should_do_heavy_block == -1) should_do_heavy_block = (10*i)+x;
-                    if (subtype == ITEM_XRAY && should_do_xray == -1) should_do_xray = (10*i)+x;
+                if (subtype == ITEM_HARD && should_do_hard_block == -1) should_do_hard_block = (10*i)+x;
+                if (subtype == ITEM_SHOTGUN && should_do_shotgun == -1) should_do_shotgun = (10*i)+x;
+                if (subtype == ITEM_LASER && should_do_laser == -1) should_do_laser = (10*i)+x;
+                if (subtype == ITEM_NEGATE && should_do_negate == -1) should_do_negate = (10*i)+x;
+                if (subtype == ITEM_DEL_UPPER && should_do_del_upper == -1) should_do_del_upper = (10*i)+x;
+                if (subtype == ITEM_DEL_LOWER && should_do_del_lower == -1) should_do_del_lower = (10*i)+x;
+                if (subtype == ITEM_DEL_EVEN && should_do_del_even == -1) should_do_del_even = (10*i)+x;
+                if (subtype == ITEM_PUSH_LEFT && should_do_push_left == -1) should_do_push_left = (10*i)+x;
+                if (subtype == ITEM_PUSH_RIGHT && should_do_push_right == -1) should_do_push_right = (10*i)+x;
+                if (subtype == ITEM_PUSH_DOWN && should_do_push_down == -1) should_do_push_down = (10*i)+x;
+                if (subtype == ITEM_180 && should_do_180 == -1) should_do_180 = (10*i)+x;
+                if (subtype == ITEM_BIG_BLOCK && should_do_big_block == -1) should_do_big_block = (10*i)+x;
+                if (subtype == ITEM_ANTIGRAVITY && should_do_antigravity == -1) should_do_antigravity = (10*i)+x;
+                if (subtype == ITEM_ROLL && should_do_roll_block == -1) should_do_roll_block = (10*i)+x;
+                if (subtype == ITEM_HEAVY && should_do_heavy_block == -1) should_do_heavy_block = (10*i)+x;
+                if (subtype == ITEM_XRAY && should_do_xray == -1) should_do_xray = (10*i)+x;
 
-                    wipe_subtype_by_id(field[x][i].id);
-                }
+                wipe_subtype_by_id(field[x][i].id);
             }
             clears[ct++] = i;
         }
@@ -1299,6 +1339,7 @@ void check_clears() {
 }
 
 void wipe_clears() {
+    block_t empty = {0};
     for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) continue;
         bool should_not_drop = false;
@@ -1307,8 +1348,7 @@ void wipe_clears() {
                 field[x][clears[i]].subtype = BLOCK_VOID;
                 should_not_drop = true;
             } else {
-                field[x][clears[i]].type = BLOCK_VOID;
-                field[x][clears[i]].subtype = BLOCK_VOID;
+                field[x][clears[i]] = empty;
             }
         }
         if (should_not_drop) clears[i] = -1;
@@ -1326,6 +1366,7 @@ void collapse_clears(bool sound) {
     }
     SDL_qsort(clears, 24, sizeof(int), compare_int);
 
+    block_t empty = {0};
     for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) continue;
         for (int j = clears[i]; j > 0; j--) {
@@ -1340,16 +1381,16 @@ void collapse_clears(bool sound) {
             field[8][j] = field[8][j-1];
             field[9][j] = field[9][j-1];
         }
-        field[0][0] = (block_t){0};
-        field[1][0] = (block_t){0};
-        field[2][0] = (block_t){0};
-        field[3][0] = (block_t){0};
-        field[4][0] = (block_t){0};
-        field[5][0] = (block_t){0};
-        field[6][0] = (block_t){0};
-        field[7][0] = (block_t){0};
-        field[8][0] = (block_t){0};
-        field[9][0] = (block_t){0};
+        field[0][0] = empty;
+        field[1][0] = empty;
+        field[2][0] = empty;
+        field[3][0] = empty;
+        field[4][0] = empty;
+        field[5][0] = empty;
+        field[6][0] = empty;
+        field[7][0] = empty;
+        field[8][0] = empty;
+        field[9][0] = empty;
     }
     play_sound(&linecollapse_sound);
     lines_cleared = 0;
@@ -1433,6 +1474,7 @@ void do_del_even() {
 }
 
 void do_push_left() {
+    block_t empty = {0};
     add_overlay("Push Left");
     for (int y = 0; y < 24; ++y) {
         int left_most_taken = 0;
@@ -1440,8 +1482,7 @@ void do_push_left() {
             if (field[x][y].type != BLOCK_VOID) {
                 if (x != left_most_taken) {
                     field[left_most_taken][y] = field[x][y];
-                    field[x][y].type = BLOCK_VOID;
-                    field[x][y].subtype = BLOCK_VOID;
+                    field[x][y] = empty;
                 }
                 left_most_taken++;
             }
@@ -1450,6 +1491,7 @@ void do_push_left() {
 }
 
 void do_push_right() {
+    block_t empty = {0};
     add_overlay("Push Right");
     for (int y = 0; y < 24; ++y) {
         int right_most_taken = 9;
@@ -1457,8 +1499,7 @@ void do_push_right() {
             if (field[x][y].type != BLOCK_VOID) {
                 if (x != right_most_taken) {
                     field[right_most_taken][y] = field[x][y];
-                    field[x][y].type = BLOCK_VOID;
-                    field[x][y].subtype = BLOCK_VOID;
+                    field[x][y] = empty;
                 }
                 right_most_taken--;
             }
@@ -1467,15 +1508,18 @@ void do_push_right() {
 }
 
 void do_push_down() {
+    block_t empty = {0};
     add_overlay("Push Down");
     for (int x = 0; x < 10; ++x) {
         int bottom_most_taken = 23;
         for (int y = 23; y >= 0; --y) {
             if (field[x][y].type != BLOCK_VOID) {
                 if (y != bottom_most_taken) {
+                    if (field[x][y].subtype == BLOCK_HARD) field[x][y].subtype = BLOCK_VOID;
                     field[x][bottom_most_taken] = field[x][y];
-                    field[x][y].type = BLOCK_VOID;
-                    field[x][y].subtype = BLOCK_VOID;
+                    field[x][y] = empty;
+                } else {
+                    if (field[x][y].subtype == BLOCK_HARD) field[x][y].subtype = BLOCK_VOID;
                 }
                 bottom_most_taken--;
             }
@@ -1653,13 +1697,12 @@ void do_hold(bool ihs) {
         held_piece.is_big = current_piece.is_big;
         held_piece.is_heavy = current_piece.is_heavy;
         held_piece.is_rolling = current_piece.is_rolling;
-        current_piece = (live_block_t){0};
         current_piece = next_piece[0];
         next_piece[0] = next_piece[1];
         next_piece[1] = next_piece[2];
         next_piece[2] = result;
 
-        if (!ihs) {
+        if (!ihs && get_setting_value(PREVIEWS_SETTING_IDX) > 0) {
             if (next_piece[0].type == BLOCK_I) play_sound(&i_sound);
             if (next_piece[0].type == BLOCK_S) play_sound(&s_sound);
             if (next_piece[0].type == BLOCK_Z) play_sound(&z_sound);
@@ -1737,13 +1780,15 @@ void generate_next_piece() {
     }
 
     // Play sound.
-    if (next_piece[0].type == BLOCK_I) play_sound(&i_sound);
-    if (next_piece[0].type == BLOCK_S) play_sound(&s_sound);
-    if (next_piece[0].type == BLOCK_Z) play_sound(&z_sound);
-    if (next_piece[0].type == BLOCK_J) play_sound(&j_sound);
-    if (next_piece[0].type == BLOCK_L) play_sound(&l_sound);
-    if (next_piece[0].type == BLOCK_O) play_sound(&o_sound);
-    if (next_piece[0].type == BLOCK_T) play_sound(&t_sound);
+    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) {
+        if (next_piece[0].type == BLOCK_I) play_sound(&i_sound);
+        if (next_piece[0].type == BLOCK_S) play_sound(&s_sound);
+        if (next_piece[0].type == BLOCK_Z) play_sound(&z_sound);
+        if (next_piece[0].type == BLOCK_J) play_sound(&j_sound);
+        if (next_piece[0].type == BLOCK_L) play_sound(&l_sound);
+        if (next_piece[0].type == BLOCK_O) play_sound(&o_sound);
+        if (next_piece[0].type == BLOCK_T) play_sound(&t_sound);
+    }
 
     if (get_gravity() == 5120) {
         while (!piece_grounded()) try_descend();
@@ -1800,6 +1845,9 @@ void gray_line(const int row) {
     for (int i = 0; i < 10; i++) {
         if (field[i][row].type != BLOCK_VOID) {
             field[i][row].type = BLOCK_X;
+            field[i][row].subtype = BLOCK_VOID;
+        } else {
+            field[i][row].type = BLOCK_VOID;
             field[i][row].subtype = BLOCK_VOID;
         }
     }
@@ -1947,14 +1995,17 @@ void render_field_block(const int x, const int y) {
     const bool voidAbove = y != 4 && field[x][y-1].type == BLOCK_VOID;
     const bool voidBelow = y != 23 && field[x][y+1].type == BLOCK_VOID;
     block_type_t to_draw = field[x][y].type;
+    if (to_draw == BLOCK_VOID) return;
     if (field[x][y].subtype != BLOCK_VOID) to_draw = field[x][y].subtype;
     render_raw_block(x, y-4, to_draw, field[x][y].lock_status, field[x][y].lock_param, voidToLeft, voidToRight, voidAbove, voidBelow, update_and_get_fade_state(&field[x][y]), false);
 }
 
 void render_held_block() {
     block_type_t to_draw = held_piece.type;
+    if (to_draw == BLOCK_VOID) return;
     if (held_piece.subtype != BLOCK_VOID) to_draw = held_piece.subtype;
     else if (held_piece.is_bone) to_draw = BLOCK_BONE;
+    else if (held_piece.is_rolling) to_draw = BLOCK_X;
     switch(held_piece.type) {
         case BLOCK_I:
             render_raw_block(3, -4, to_draw, LOCK_HOLD, 1.0f, false, false, false, false, 1, false);
@@ -2005,8 +2056,10 @@ void render_held_block() {
 
 void render_next_block(int index) {
     block_type_t to_draw = next_piece[index].type;
+    if (to_draw == BLOCK_VOID) return;
     if (next_piece[index].subtype != BLOCK_VOID) to_draw = next_piece[index].subtype;
     else if (next_piece[index].is_bone) to_draw = BLOCK_BONE;
+    else if (next_piece[index].is_rolling) to_draw = BLOCK_X;
     switch(next_piece[index].type) {
         case BLOCK_I:
             render_raw_block(3, -4, to_draw, LOCK_NEXT, (float)index, false, false, false, false, 1, false);
@@ -2365,40 +2418,42 @@ void render_game() {
     }
 
     // Garbage / G?
-    dst.x = FIELD_X_OFFSET + 10*16 + 12;
-    dst.y = FIELD_Y_OFFSET;
-    dst.w = 7;
-    dst.h = 20*16;
-    SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
-    SDL_RenderFillRect(renderer, &dst);
+    if (game_state != STATE_WAIT) {
+        dst.x = FIELD_X_OFFSET + 10*16 + 12;
+        dst.y = FIELD_Y_OFFSET;
+        dst.w = 7;
+        dst.h = 20*16;
+        SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
+        SDL_RenderFillRect(renderer, &dst);
 
-    dst.x += 1;
-    dst.y += 1;
-    dst.w = 2;
-    dst.h -= 2;
+        dst.x += 1;
+        dst.y += 1;
+        dst.w = 2;
+        dst.h -= 2;
 
-    float total = dst.h;
-    float fraction = 0;
+        float total = dst.h;
+        float fraction = 0;
 
-    if (current_timing->garbage != 0) fraction = ((float)current_timing->garbage - (float)garbage_ctr - 1) / ((float)current_timing->garbage - 1);
-    else fraction = (float)get_gravity() / 5120.0f;
-    if (fraction > 1) fraction = 1;
-    if (fraction < 0) fraction = 0;
+        if (current_timing->garbage != 0) fraction = ((float)current_timing->garbage - (float)garbage_ctr - 1) / ((float)current_timing->garbage - 1);
+        else fraction = (float)get_gravity() / 5120.0f;
+        if (fraction > 1) fraction = 1;
+        if (fraction < 0) fraction = 0;
 
-    dst.y += (1-fraction) * total;
-    dst.h = fraction * total;
-    if (((current_timing->garbage == 0 && get_gravity() >= 5120) || (current_timing->garbage != 0 && garbage_ctr == 0)) && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, TRANSPARENCY ? (FIELD_TRANSPARENCY * 255) : 255);
-    else SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
-    SDL_RenderFillRect(renderer, &dst);
+        dst.y += (1-fraction) * total;
+        dst.h = fraction * total;
+        if (((current_timing->garbage == 0 && get_gravity() >= 5120) || (current_timing->garbage != 0 && garbage_ctr == 0)) && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, TRANSPARENCY ? (FIELD_TRANSPARENCY * 255) : 255);
+        else SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
+        SDL_RenderFillRect(renderer, &dst);
 
-    dst.y = FIELD_Y_OFFSET + 1;
-    dst.x += 3;
-    fraction = (float)(level % 100) / 100.0f;
-    dst.y += (1-fraction) * total;
-    dst.h = fraction * total;
-    if (section_locked && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, TRANSPARENCY ? (FIELD_TRANSPARENCY * 255) : 255);
-    else SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
-    SDL_RenderFillRect(renderer, &dst);
+        dst.y = FIELD_Y_OFFSET + 1;
+        dst.x += 3;
+        fraction = (float)(level % 100) / 100.0f;
+        dst.y += (1-fraction) * total;
+        dst.h = fraction * total;
+        if (section_locked && (game_details.total_frames & 8) != 0) SDL_SetRenderDrawColor(renderer, 239, 191, 4, TRANSPARENCY ? (FIELD_TRANSPARENCY * 255) : 255);
+        else SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, TRANSPARENCY ? FIELD_TRANSPARENCY : 1.0f);
+        SDL_RenderFillRect(renderer, &dst);
+    }
 
     // Title screen.
     if (game_state == STATE_WAIT) {
@@ -2473,13 +2528,11 @@ void render_game() {
 }
 
 void do_reset() {
-    item_hist[0] = ITEM_NEGATE;
-    item_hist[1] = ITEM_SHOTGUN;
-    fill_item_bag();
-    generate_first_piece();
     SDL_memset(time_spent_at_level, 0, sizeof time_spent_at_level);
     SDL_memset(field, 0, sizeof field);
     SDL_memset(jingle_played, 0, sizeof jingle_played);
+    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
+
     game_state = STATE_WAIT;
     game_state_ctr = 60;
     lines_cleared = 0;
@@ -2500,10 +2553,16 @@ void do_reset() {
     selective_gravity = false;
     disable_selective_gravity_after_clear = false;
     item_mode = false;
-    SDL_memset(effect_overlay, 0, sizeof(effect_overlay));
     effect_overlay_ctr = 0;
     xray_ctr = 0;
     garbage_ctr = -1;
+
+    item_hist[0] = ITEM_NEGATE;
+    item_hist[1] = ITEM_SHOTGUN;
+    fill_item_bag();
+
+    current_piece = (live_block_t){0};
+    held_piece = (live_block_t){0};
 }
 
 void update_details() {
@@ -2583,16 +2642,7 @@ bool state_machine_tick() {
             while ((current_timing + 1)->level != -1 && (current_timing + 1)->level <= level) current_timing = current_timing+1;
             check_garbage();
             check_effect();
-            if (big_mode) {
-                next_piece[0].is_big = true;
-                next_piece[1].is_big = true;
-                next_piece[2].is_big = true;
-            }
-            if (bones) {
-                next_piece[0].is_bone = true;
-                next_piece[1].is_bone = true;
-                next_piece[2].is_bone = true;
-            }
+            generate_first_piece();
             for (int i = 0; i < SETTINGS_COUNT; ++i) locked_settings[i] = settings_values[i];
             calculate_mode_hash();
         }
@@ -2624,7 +2674,8 @@ bool state_machine_tick() {
             generate_next_piece();
             if (piece_collides(current_piece) != -1) {
                 write_piece(current_piece);
-                current_piece.type = BLOCK_VOID;
+                live_block_t empty = {0};
+                current_piece = empty;
                 game_state = STATE_GAMEOVER;
                 game_state_ctr = 10 * 24 + 1;
                 play_sound(&gameover_sound);
@@ -2658,11 +2709,11 @@ bool state_machine_tick() {
             button_l_held = 0;
             button_r_held = 0;
         } else if (IS_JUST_HELD(button_l_held) || IS_HELD_FOR_AT_LEAST(button_l_held, current_timing->das)) {
-            try_move(-1);
-            if (big_mode && !big_mode_half_columns && current_piece.x % 2 == 1) try_move(-1);
+            if (big_mode && !big_mode_half_columns && (current_piece.x % 2) == 0) try_move(-2);
+            else try_move(-1);
         } else if (IS_JUST_HELD(button_r_held) || IS_HELD_FOR_AT_LEAST(button_r_held, current_timing->das)) {
-            try_move(1);
-            if (big_mode && !big_mode_half_columns && current_piece.x % 2 == 1) try_move(1);
+            if (big_mode && !big_mode_half_columns && (current_piece.x % 2) == 0) try_move(2);
+            else try_move(1);
         }
 
         // Gravity.
@@ -2715,7 +2766,8 @@ bool state_machine_tick() {
         update_details();
         game_state_ctr--;
         if (game_state_ctr != 0) return true;
-        current_piece.type = BLOCK_VOID;
+        live_block_t empty = {0};
+        current_piece = empty;
         check_clears();
         if (game_state != STATE_LOCKFLASH) return true;
         if (lines_cleared != 0) {
@@ -2814,7 +2866,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     calculate_mode_hash();
 
     seed_rng();
-    generate_first_piece();
     current_timing = GAME_TIMINGS;
 
     // Create the window.
