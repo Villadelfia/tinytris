@@ -1928,7 +1928,6 @@ void render_raw_block(const int col, const int row, const block_type_t block, co
             dest.h = 8.0f;
             if (!can_hold) {
                 mod = 0.3f;
-                moda = 0.3f;
             }
             break;
         default:
