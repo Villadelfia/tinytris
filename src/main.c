@@ -2342,7 +2342,7 @@ void render_game() {
     SDL_SetTextureAlphaModFloat(atlas_texture, 1);
 
     // Background for next.
-    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0 || get_setting_value(HOLD_SETTING_IDX) > 0) {
+    if (game_state != STATE_WAIT && (get_setting_value(PREVIEWS_SETTING_IDX) > 0 || get_setting_value(HOLD_SETTING_IDX) > 0)) {
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
         const float mid_point = FIELD_X_OFFSET + (5.5f * 32.0f);
         dst.x = mid_point - 3.0f*32.0f;
@@ -2367,19 +2367,19 @@ void render_game() {
             dst3.w += 2.0f;
         }
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE, (float)RENDER_SCALE);
-    }
 
-    // Next/hold text.
-    src = texture_atlas[TEXTURE_NEXT];
-    dst.x = FIELD_X_OFFSET + (3.0f * 16.0f);
-    dst.y = (FIELD_Y_OFFSET - (4.0f * 16.0f) - 12);
-    dst.w = src.w;
-    dst.h = src.h;
-    SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) SDL_RenderTexture(renderer, atlas_texture, &src, &dst);
-    src = texture_atlas[TEXTURE_HOLD];
-    dst.x -= 3.5f*16.0f;
-    if (get_setting_value(HOLD_SETTING_IDX) > 0) SDL_RenderTexture(renderer, atlas_texture, &src, &dst);
+        // Next/hold text.
+        src = texture_atlas[TEXTURE_NEXT];
+        dst.x = FIELD_X_OFFSET + (3.0f * 16.0f);
+        dst.y = (FIELD_Y_OFFSET - (4.0f * 16.0f) - 12);
+        dst.w = src.w;
+        dst.h = src.h;
+        SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
+        if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) SDL_RenderTexture(renderer, atlas_texture, &src, &dst);
+        src = texture_atlas[TEXTURE_HOLD];
+        dst.x -= 3.5f*16.0f;
+        if (get_setting_value(HOLD_SETTING_IDX) > 0) SDL_RenderTexture(renderer, atlas_texture, &src, &dst);
+    }
 
     // Render the game.
     render_field();
@@ -2573,6 +2573,9 @@ void do_reset() {
 
     current_piece = (live_block_t){0};
     held_piece = (live_block_t){0};
+    next_piece[0] = (live_block_t){0};
+    next_piece[1] = (live_block_t){0};
+    next_piece[2] = (live_block_t){0};
 }
 
 void update_details() {
