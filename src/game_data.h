@@ -9,6 +9,7 @@
 #include "assets/ready.h"
 #include "assets/go.h"
 #include "assets/hold.h"
+#include "assets/move.h"
 #include "game_types.h"
 
 const float FIELD_X_OFFSET = 16.0f;

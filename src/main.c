@@ -10,6 +10,11 @@
 #include "game_config.h"
 #include "input_utils.h"
 #include "stb_vorbis.h"
+#if _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #include <sapi.h>
+    ISpVoice *voice;
+#endif
 
 // SDL stuff.
 static SDL_Window *window = NULL;
@@ -21,6 +26,14 @@ static SDL_AudioStream *music = NULL;
 #define FRAME_TIME (SDL_NS_PER_SECOND / SDL_SINT64_C(60))
 static Uint64 last_time = 0;
 static Sint64 accumulated_time = 0;
+
+static int say(void *data) {
+#if _WIN32
+    LPCWSTR text = (LPCWSTR)data;
+    voice->lpVtbl->Speak(voice, text, SPF_ASYNC | SPF_PURGEBEFORESPEAK | SPF_IS_NOT_XML, NULL);
+#endif
+    return 0;
+}
 
 typedef struct {
     int16_t *wave_data;
@@ -115,6 +128,7 @@ sound_t tetris_b2b_sound;
 sound_t gameover_sound;
 sound_t complete_sound;
 sound_t hold_sound;
+sound_t move_sound;
 
 int32_t button_u_held = 0;
 int32_t button_l_held = 0;
@@ -278,6 +292,40 @@ void update_input_states(bool p) {
 
 void play_sound(const sound_t *sound) {
     if (MUTED || SFX_VOLUME == 0.0f) return;
+
+#if _WIN32
+    if (BLIND_FEEDBACK) {
+        if (sound == &i_sound) {
+            SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Line"));
+            return;
+        }
+        if (sound == &s_sound) {
+            SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Ess"));
+            return;
+        }
+        if (sound == &z_sound) {
+            SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Zed"));
+            return;
+        }
+        if (sound == &j_sound) {
+            SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Jay"));
+            return;
+        }
+        if (sound == &l_sound) {
+            SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Ell"));
+            return;
+        }
+        if (sound == &o_sound) {
+            SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Square"));
+            return;
+        }
+        if (sound == &t_sound) {
+            SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Tee"));
+            return;
+        }
+    }
+#endif
+
     if (sound->stream == NULL) return;
     SDL_ClearAudioStream(sound->stream);
     SDL_PutAudioStreamData(sound->stream, sound->wave_data, (int)sound->wave_data_len);
@@ -566,6 +614,7 @@ void check_effect() {
                 live_block_t empty = {0};
                 current_piece = empty;
                 game_state = STATE_GAMEOVER;
+                SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Game over"));
                 game_state_ctr = 10 * 24 + 1;
                 play_sound(&gameover_sound);
                 return;
@@ -1366,10 +1415,26 @@ void collapse_clears(bool sound) {
     }
     SDL_qsort(clears, 24, sizeof(int), compare_int);
 
+    bool did_collapse = false;
+
     block_t empty = {0};
     for (int i = 0; i < 24; ++i) {
         if (clears[i] == -1) continue;
         for (int j = clears[i]; j > 0; j--) {
+            if (!did_collapse && (
+                field[0][j-1].type != BLOCK_VOID ||
+                field[1][j-1].type != BLOCK_VOID ||
+                field[2][j-1].type != BLOCK_VOID ||
+                field[3][j-1].type != BLOCK_VOID ||
+                field[4][j-1].type != BLOCK_VOID ||
+                field[5][j-1].type != BLOCK_VOID ||
+                field[6][j-1].type != BLOCK_VOID ||
+                field[7][j-1].type != BLOCK_VOID ||
+                field[8][j-1].type != BLOCK_VOID ||
+                field[9][j-1].type != BLOCK_VOID
+                )) {
+                did_collapse = true;
+            }
             field[0][j] = field[0][j-1];
             field[1][j] = field[1][j-1];
             field[2][j] = field[2][j-1];
@@ -1392,7 +1457,7 @@ void collapse_clears(bool sound) {
         field[8][0] = empty;
         field[9][0] = empty;
     }
-    play_sound(&linecollapse_sound);
+    if (did_collapse && sound) play_sound(&linecollapse_sound);
     lines_cleared = 0;
 }
 
@@ -2342,7 +2407,7 @@ void render_game() {
     SDL_SetTextureAlphaModFloat(atlas_texture, 1);
 
     // Background for next.
-    if (game_state != STATE_WAIT && (get_setting_value(PREVIEWS_SETTING_IDX) > 0 || get_setting_value(HOLD_SETTING_IDX) > 0)) {
+    if (game_state != STATE_WAIT && (get_setting_value(PREVIEWS_SETTING_IDX) > 0 || get_setting_value(HOLD_SETTING_IDX) > 0) && !BLIND_MODE) {
         SDL_SetRenderScale(renderer, (float)RENDER_SCALE/2.0f, (float)RENDER_SCALE/2.0f);
         const float mid_point = FIELD_X_OFFSET + (5.5f * 32.0f);
         dst.x = mid_point - 3.0f*32.0f;
@@ -2382,37 +2447,41 @@ void render_game() {
     }
 
     // Render the game.
-    render_field();
-    render_held_block();
-    if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) render_next_block(0);
-    if (get_setting_value(PREVIEWS_SETTING_IDX) > 1) render_next_block(1);
-    if (get_setting_value(PREVIEWS_SETTING_IDX) > 2) render_next_block(2);
-    render_tls();
-    render_current_block();
+    if (!BLIND_MODE) {
+        render_field();
+        render_held_block();
+        if (get_setting_value(PREVIEWS_SETTING_IDX) > 0) render_next_block(0);
+        if (get_setting_value(PREVIEWS_SETTING_IDX) > 1) render_next_block(1);
+        if (get_setting_value(PREVIEWS_SETTING_IDX) > 2) render_next_block(2);
+        render_tls();
+        render_current_block();
+    }
     render_details();
 
     // Pikii?
-    if (frozen_rows > 0) {
-        SDL_SetRenderDrawColorFloat(renderer, 0.45f, 0.61f, 0.82f, 0.4f);
-        dst.w = 10.0f*16.0f;
-        dst.h = (float)frozen_rows*16.0f;
-        dst.x = FIELD_X_OFFSET;
-        dst.y = FIELD_Y_OFFSET + ((20.0f-(float)((frozen_rows > 20) ? 20 : frozen_rows))*16.0f);
-        SDL_RenderFillRect(renderer, &dst);
-        SDL_SetRenderDrawColorFloat(renderer, 0.45f, 0.61f, 0.82f, 0.8f);
-        dst.h = 2.0f;
-        SDL_RenderFillRect(renderer, &dst);
-    }
+    if (!BLIND_MODE) {
+        if (frozen_rows > 0) {
+            SDL_SetRenderDrawColorFloat(renderer, 0.45f, 0.61f, 0.82f, 0.4f);
+            dst.w = 10.0f*16.0f;
+            dst.h = (float)frozen_rows*16.0f;
+            dst.x = FIELD_X_OFFSET;
+            dst.y = FIELD_Y_OFFSET + ((20.0f-(float)((frozen_rows > 20) ? 20 : frozen_rows))*16.0f);
+            SDL_RenderFillRect(renderer, &dst);
+            SDL_SetRenderDrawColorFloat(renderer, 0.45f, 0.61f, 0.82f, 0.8f);
+            dst.h = 2.0f;
+            SDL_RenderFillRect(renderer, &dst);
+        }
 
-    // Overlay?
-    if (effect_overlay_ctr > 0) {
-        effect_overlay_ctr--;
+        // Overlay?
+        if (effect_overlay_ctr > 0) {
+            effect_overlay_ctr--;
 
-        SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
-        for (int i = 0; i < 10; ++i) {
-            size_t length = (SDL_strlen(effect_overlay[i]) / 2) * 8;
-            if (length == 0) continue;
-            SDL_RenderDebugText(renderer, FIELD_X_OFFSET + (5*16) - length, FIELD_Y_OFFSET+80.0f+(i*10.0f), effect_overlay[i]);
+            SDL_SetRenderDrawColorFloat(renderer, 1, 1, 1, 1.0f);
+            for (int i = 0; i < 10; ++i) {
+                size_t length = (SDL_strlen(effect_overlay[i]) / 2) * 8;
+                if (length == 0) continue;
+                SDL_RenderDebugText(renderer, FIELD_X_OFFSET + (5*16) - length, FIELD_Y_OFFSET+80.0f+(i*10.0f), effect_overlay[i]);
+            }
         }
     }
 
@@ -2538,6 +2607,7 @@ void render_game() {
 }
 
 void do_reset() {
+    SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Title screen"));
     SDL_memset(time_spent_at_level, 0, sizeof time_spent_at_level);
     SDL_memset(field, 0, sizeof field);
     SDL_memset(jingle_played, 0, sizeof jingle_played);
@@ -2588,6 +2658,7 @@ void update_details() {
         in_roll_remaining--;
         if (in_roll_remaining == 0) {
             game_state = STATE_GAMEOVER;
+            SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Game complete"));
             game_state_ctr = 10 * 24 + 1;
             play_sound(&complete_sound);
         }
@@ -2630,21 +2701,51 @@ bool state_machine_tick() {
 
     // Do all the logic.
     if (game_state == STATE_WAIT) {
-        if (IS_JUST_HELD(button_l_held)) change_setting(selected_setting, -1);
-        if (IS_JUST_HELD(button_r_held)) change_setting(selected_setting, 1);
+        if (IS_JUST_HELD(button_l_held)) {
+            change_setting(selected_setting, -1);
+            play_sound(&move_sound);
+        }
+        if (IS_JUST_HELD(button_r_held)) {
+            change_setting(selected_setting, 1);
+            play_sound(&move_sound);
+        }
 
         // Specifically for start level...
         if (selected_setting == STARTING_LEVEL_SETTING_IDX) {
-            if (IS_HELD_FOR_AT_LEAST(button_l_held, 600)) change_setting(selected_setting, -100);
-            else if (IS_HELD_FOR_AT_LEAST(button_l_held, 120)) change_setting(selected_setting, -10);
-            else if (IS_HELD_FOR_AT_LEAST(button_l_held, 30)) change_setting(selected_setting, -1);
-            if (IS_HELD_FOR_AT_LEAST(button_r_held, 600)) change_setting(selected_setting, 100);
-            else if (IS_HELD_FOR_AT_LEAST(button_r_held, 120)) change_setting(selected_setting, 10);
-            else if (IS_HELD_FOR_AT_LEAST(button_r_held, 30)) change_setting(selected_setting, 1);
+            if (IS_HELD_FOR_AT_LEAST(button_l_held, 600)) {
+                change_setting(selected_setting, -100);
+                play_sound(&move_sound);
+            }
+            else if (IS_HELD_FOR_AT_LEAST(button_l_held, 120)) {
+                change_setting(selected_setting, -10);
+                play_sound(&move_sound);
+            }
+            else if (IS_HELD_FOR_AT_LEAST(button_l_held, 30)) {
+                change_setting(selected_setting, -1);
+                play_sound(&move_sound);
+            }
+            if (IS_HELD_FOR_AT_LEAST(button_r_held, 600)) {
+                change_setting(selected_setting, 100);
+                play_sound(&move_sound);
+            }
+            else if (IS_HELD_FOR_AT_LEAST(button_r_held, 120)) {
+                change_setting(selected_setting, 10);
+                play_sound(&move_sound);
+            }
+            else if (IS_HELD_FOR_AT_LEAST(button_r_held, 30)) {
+                change_setting(selected_setting, 1);
+                play_sound(&move_sound);
+            }
         }
 
-        if (IS_JUST_HELD(button_u_held)) change_selected_setting(-1);
-        if (IS_JUST_HELD(button_d_held)) change_selected_setting(1);
+        if (IS_JUST_HELD(button_u_held)) {
+            change_selected_setting(-1);
+            play_sound(&move_sound);
+        }
+        if (IS_JUST_HELD(button_d_held)) {
+            change_selected_setting(1);
+            play_sound(&move_sound);
+        }
 
         if (IS_JUST_HELD(button_start_held)) {
             game_state = STATE_BEGIN;
@@ -2670,9 +2771,20 @@ bool state_machine_tick() {
             game_state = STATE_ARE;
             game_state_ctr = 1;
             play_sound(&go_sound);
-        }else if (game_state_ctr <= 3) {
+        } else if (game_state_ctr <= 3) {
             border_r = border_g = border_b = 1.0f;
         } else {
+            if (game_state_ctr == 30) {
+                if ((BLIND_MODE || EXTRA_FEEDBACK) && get_setting_value(PREVIEWS_SETTING_IDX) > 0) {
+                    if (next_piece[0].type == BLOCK_I) play_sound(&i_sound);
+                    if (next_piece[0].type == BLOCK_S) play_sound(&s_sound);
+                    if (next_piece[0].type == BLOCK_Z) play_sound(&z_sound);
+                    if (next_piece[0].type == BLOCK_J) play_sound(&j_sound);
+                    if (next_piece[0].type == BLOCK_L) play_sound(&l_sound);
+                    if (next_piece[0].type == BLOCK_O) play_sound(&o_sound);
+                    if (next_piece[0].type == BLOCK_T) play_sound(&t_sound);
+                }
+            }
             border_r = lerp(0.9f, 0.1f, (float)(game_state_ctr-3)/57.0f);
             border_g = lerp(0.1f, 0.1f, (float)(game_state_ctr-3)/57.0f);
             border_b = lerp(0.1f, 0.9f, (float)(game_state_ctr-3)/57.0f);
@@ -2690,6 +2802,7 @@ bool state_machine_tick() {
                 live_block_t empty = {0};
                 current_piece = empty;
                 game_state = STATE_GAMEOVER;
+                SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Game over"));
                 game_state_ctr = 10 * 24 + 1;
                 play_sound(&gameover_sound);
             } else {
@@ -2718,6 +2831,7 @@ bool state_machine_tick() {
         if (prev_state != current_piece.rotation_state && prev_kicked) current_piece.lock_delay = 0;
 
         // Move.
+        int prev_x = current_piece.x;
         if (IS_HELD(button_l_held) && IS_HELD(button_r_held)) {
             button_l_held = 0;
             button_r_held = 0;
@@ -2727,6 +2841,10 @@ bool state_machine_tick() {
         } else if (IS_JUST_HELD(button_r_held) || IS_HELD_FOR_AT_LEAST(button_r_held, current_timing->das)) {
             if (big_mode && !big_mode_half_columns && (current_piece.x % 2) == 0) try_move(2);
             else try_move(1);
+        }
+
+        if ((prev_state != current_piece.rotation_state || prev_x != current_piece.x) && (BLIND_MODE || EXTRA_FEEDBACK)) {
+            play_sound(&move_sound);
         }
 
         // Gravity.
@@ -2873,6 +2991,13 @@ void load_sound(sound_t *target, const char* file, const void* fallback, const s
 }
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
+#ifdef _WIN32
+    CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    CoCreateInstance(&CLSID_SpVoice, NULL, CLSCTX_ALL, &IID_ISpVoice, (void **)&voice);
+    voice->lpVtbl->SetRate(voice, 0);
+    voice->lpVtbl->SetVolume(voice, 100);
+#endif
+
     fill_item_bag();
     load_config();
     for (int i = 0; i < SETTINGS_COUNT; ++i) locked_settings[i] = settings_values[i];
@@ -2909,6 +3034,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     load_sound(&ready_sound, "data/ready.ogg", ready, sizeof ready);
     load_sound(&go_sound, "data/go.ogg", go, sizeof go);
     load_sound(&hold_sound, "data/hold.ogg", hold, sizeof hold);
+    load_sound(&move_sound, "data/move.ogg", move, sizeof move);
 
     // Optional sounds
     load_sound(&i_sound, "data/i_mino.ogg", NULL, 0);
@@ -2934,6 +3060,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     }
 
     last_time = SDL_GetTicksNS();
+
+    SDL_DetachThread(SDL_CreateThread(say, "", (void*)L"Title screen"));
 
     return SDL_APP_CONTINUE;
 }
@@ -2997,4 +3125,9 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     return SDL_APP_CONTINUE;
 }
 
-void SDL_AppQuit(void *appstate, SDL_AppResult result) {}
+void SDL_AppQuit(void *appstate, SDL_AppResult result) {
+#ifdef _WIN32
+    voice->lpVtbl->Release(voice);
+    CoUninitialize();
+#endif
+}

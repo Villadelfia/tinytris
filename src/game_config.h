@@ -78,6 +78,9 @@ float FADE_TIME = 60.0f;
 bool DETAILS = false;
 bool SMOOTH_GRAVITY = false;
 float FIELD_TRANSPARENCY = 0.8f;
+bool EXTRA_FEEDBACK = false;
+bool BLIND_MODE = false;
+bool BLIND_FEEDBACK = false;
 
 typedef struct {
     int16_t *wave_data;
@@ -530,6 +533,9 @@ static int parse_config(void* user, const char* section, const char* name, const
         if (SDL_strcasecmp(name, "render_scale") == 0) RENDER_SCALE = v;
         if (SDL_strcasecmp(name, "transparent_field") == 0) TRANSPARENCY = v != 0;
         if (SDL_strcasecmp(name, "audio_enabled") == 0) MUTED = v == 0;
+        if (SDL_strcasecmp(name, "blind_mode") == 0) BLIND_MODE = v != 0;
+        if (SDL_strcasecmp(name, "extra_feedback") == 0) EXTRA_FEEDBACK = v != 0;
+        if (SDL_strcasecmp(name, "blind_feedback") == 0) BLIND_FEEDBACK = v != 0;
         if (SDL_strcasecmp(name, "bgm_volume") == 0) BGM_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "sfx_volume") == 0) SFX_VOLUME = (float)v/100.0f;
         if (SDL_strcasecmp(name, "fade_time") == 0) FADE_TIME = (float)v;
