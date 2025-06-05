@@ -46,9 +46,6 @@ All of the built-in sounds can be overridden by providing specific ogg files in 
 - `ready.ogg`: Played at the start of the new game countdown.
 - `go.ogg`: Played at the end of the new game countdown.
 - `hold.ogg`: Played when holding a piece.
-
-In addition, several sounds are supported but are not included by default:
-
 - `i_mino.ogg`: Played when a piece spawns and the next mino is an I piece.
 - `s_mino.ogg`: Played when a piece spawns and the next mino is an S piece.
 - `z_mino.ogg`: Played when a piece spawns and the next mino is a Z piece.
@@ -63,6 +60,7 @@ In addition, several sounds are supported but are not included by default:
 - `combo.ogg`: Played when clearing 2 or more lines after clearing one or more line.
 - `gameover.ogg`: Played when topping out.
 - `complete.ogg`: Played when completing a game.
+- `move.ogg`: Played when moving in the menus and used as an indicator in extra feedback mode.
 
 ## Music
 Music is supported. Songs and sections can be reconfigured in `config.ini`.

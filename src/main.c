@@ -28,6 +28,7 @@ static Uint64 last_time = 0;
 static Sint64 accumulated_time = 0;
 
 static int say(void *data) {
+    if (!BLIND_FEEDBACK) return 0;
 #if _WIN32
     LPCWSTR text = (LPCWSTR)data;
     voice->lpVtbl->Speak(voice, text, SPF_ASYNC | SPF_PURGEBEFORESPEAK | SPF_IS_NOT_XML, NULL);
@@ -3020,37 +3021,35 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     SDL_SetWindowHitTest(window, window_hit_test, NULL);
 
     // Load the image for a block.
-    atlas_texture = load_image("data/atlas.png", atlas, sizeof atlas);
+    atlas_texture = load_image("data/atlas.png", gfx_atlas, sizeof gfx_atlas);
 
     // Make audio device.
     audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
 
     // Load the sounds.
-    load_sound(&lineclear_sound, "data/lineclear.ogg", lineclear, sizeof lineclear);
-    load_sound(&linecollapse_sound, "data/linecollapse.ogg", linecollapse, sizeof linecollapse);
-    load_sound(&pieceland_sound, "data/pieceland.ogg", pieceland, sizeof pieceland);
-    load_sound(&piecelock_sound, "data/piecelock.ogg", piecelock, sizeof piecelock);
-    load_sound(&irs_sound, "data/irs.ogg", irs, sizeof irs);
-    load_sound(&ready_sound, "data/ready.ogg", ready, sizeof ready);
-    load_sound(&go_sound, "data/go.ogg", go, sizeof go);
-    load_sound(&hold_sound, "data/hold.ogg", hold, sizeof hold);
-    load_sound(&move_sound, "data/move.ogg", move, sizeof move);
-
-    // Optional sounds
-    load_sound(&i_sound, "data/i_mino.ogg", NULL, 0);
-    load_sound(&s_sound, "data/s_mino.ogg", NULL, 0);
-    load_sound(&z_sound, "data/z_mino.ogg", NULL, 0);
-    load_sound(&j_sound, "data/j_mino.ogg", NULL, 0);
-    load_sound(&l_sound, "data/l_mino.ogg", NULL, 0);
-    load_sound(&o_sound, "data/o_mino.ogg", NULL, 0);
-    load_sound(&t_sound, "data/t_mino.ogg", NULL, 0);
-    load_sound(&section_lock_sound, "data/section_lock.ogg", NULL, 0);
-    load_sound(&section_pass_sound, "data/section_pass.ogg", NULL, 0);
-    load_sound(&combo_sound, "data/combo.ogg", NULL, 0);
-    load_sound(&tetris_sound, "data/tetris.ogg", NULL, 0);
-    load_sound(&tetris_b2b_sound, "data/tetris_b2b.ogg", NULL, 0);
-    load_sound(&gameover_sound, "data/gameover.ogg", NULL, 0);
-    load_sound(&complete_sound, "data/complete.ogg", NULL, 0);
+    load_sound(&lineclear_sound, "data/lineclear.ogg", sfx_lineclear, sizeof sfx_lineclear);
+    load_sound(&linecollapse_sound, "data/linecollapse.ogg", sfx_linecollapse, sizeof sfx_linecollapse);
+    load_sound(&pieceland_sound, "data/pieceland.ogg", sfx_pieceland, sizeof sfx_pieceland);
+    load_sound(&piecelock_sound, "data/piecelock.ogg", sfx_piecelock, sizeof sfx_piecelock);
+    load_sound(&irs_sound, "data/irs.ogg", sfx_irs, sizeof sfx_irs);
+    load_sound(&ready_sound, "data/ready.ogg", sfx_ready, sizeof sfx_ready);
+    load_sound(&go_sound, "data/go.ogg", sfx_go, sizeof sfx_go);
+    load_sound(&hold_sound, "data/hold.ogg", sfx_hold, sizeof sfx_hold);
+    load_sound(&move_sound, "data/move.ogg", sfx_move, sizeof sfx_move);
+    load_sound(&i_sound, "data/i_mino.ogg", sfx_i_mino, sizeof sfx_i_mino);
+    load_sound(&s_sound, "data/s_mino.ogg", sfx_s_mino, sizeof sfx_s_mino);
+    load_sound(&z_sound, "data/z_mino.ogg", sfx_z_mino, sizeof sfx_z_mino);
+    load_sound(&j_sound, "data/j_mino.ogg", sfx_j_mino, sizeof sfx_j_mino);
+    load_sound(&l_sound, "data/l_mino.ogg", sfx_l_mino, sizeof sfx_l_mino);
+    load_sound(&o_sound, "data/o_mino.ogg", sfx_o_mino, sizeof sfx_o_mino);
+    load_sound(&t_sound, "data/t_mino.ogg", sfx_t_mino, sizeof sfx_t_mino);
+    load_sound(&section_lock_sound, "data/section_lock.ogg", sfx_section_lock, sizeof sfx_section_lock);
+    load_sound(&section_pass_sound, "data/section_pass.ogg", sfx_section_pass, sizeof sfx_section_pass);
+    load_sound(&combo_sound, "data/combo.ogg", sfx_combo, sizeof sfx_combo);
+    load_sound(&tetris_sound, "data/tetris.ogg", sfx_tetris, sizeof sfx_tetris);
+    load_sound(&tetris_b2b_sound, "data/tetris_b2b.ogg", sfx_tetris_b2b, sizeof sfx_tetris_b2b);
+    load_sound(&gameover_sound, "data/gameover.ogg", sfx_gameover, sizeof sfx_gameover);
+    load_sound(&complete_sound, "data/complete.ogg", sfx_complete, sizeof sfx_complete);
 
     // Setup music audio stream if needed.
     if (TITLE_MUSIC.level_start == -1 || SECTION_COUNT != 0) {
